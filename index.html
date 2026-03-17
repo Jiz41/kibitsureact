@@ -83,12 +83,26 @@ const GAUGE_MAX = 100, GAUGE_HIT = 5, SUPER_DMG = 120;
 /* ── EXP ────────────────────────────────────── */
 const EXP_G = 10, EXP_N = 30, EXP_B = 100;
 
+/* ── Attributes ─────────────────────────────── */
+// 相克: 火→地→風→水→火
+const ATTR_COLORS = { none:0x888888, fire:0xff4422, water:0x4499ff, earth:0x88bb33, wind:0x99ffaa };
+const ATTR_NAMES  = { none:'－', fire:'火', water:'水', earth:'地', wind:'風' };
+const ATTR_BEATS  = { fire:'earth', earth:'wind', wind:'water', water:'fire' };
+// 有利=等倍(1.0)、中立=0.75、不利=0.5
+function attrMult(atk, def) {
+  if (!def || def === 'none') return 1.0;
+  if (!atk || atk === 'none') return 0.75;
+  if (ATTR_BEATS[atk] === def) return 1.0;   // 有利
+  if (ATTR_BEATS[def] === atk) return 0.5;   // 不利
+  return 0.75;                                // 中立
+}
+
 /* ── Charms ─────────────────────────────────── */
 const CHARM_DEFS = [
-  { id:'water',   name:'水弾符', desc:'最も近い敵に水弾を放つ',      dmg:35, chargeMs:2500 },
-  { id:'pierce',  name:'貫通符', desc:'先頭の敵を狙うビームを放つ',  dmg:60, chargeMs:4000 },
-  { id:'scatter', name:'拡散符', desc:'扇状に拡散弾5発を放つ',       dmg:28, chargeMs:2800 },
-  { id:'rapid',   name:'連射符', desc:'素早く5連射（威力低め）',     dmg:12, chargeMs:900  },
+  { id:'water',   name:'水弾符', desc:'最も近い敵に水弾を放つ',      dmg:35, chargeMs:2500, attr:'water' },
+  { id:'pierce',  name:'貫通符', desc:'先頭の敵を狙うビームを放つ',  dmg:60, chargeMs:4000, attr:'wind'  },
+  { id:'scatter', name:'拡散符', desc:'扇状に拡散弾5発を放つ',       dmg:28, chargeMs:2800, attr:'fire'  },
+  { id:'rapid',   name:'連射符', desc:'素早く5連射（威力低め）',     dmg:12, chargeMs:900,  attr:'earth' },
 ];
 
 /* ══════════════════════════════════════════════ */
@@ -183,7 +197,7 @@ class MainScene extends Phaser.Scene {
       for (const oni of ol) {
         if (!oni.active) continue;
         if (Phaser.Math.Distance.Between(b.x, b.y, oni.x, oni.y) < 26) {
-          b.destroy(); this._oniDmg(oni, b.dmg || BUL_DMG); break;
+          b.destroy(); this._oniDmg(oni, b.dmg || BUL_DMG, b.attr || 'none'); break;
         }
       }
     }
@@ -364,7 +378,7 @@ class MainScene extends Phaser.Scene {
       const btn = this.cpBtns[i], c = choices[i];
       if (c) {
         btn.charm = c; btn.bg.setAlpha(1);
-        btn.nm.setText(c.name).setAlpha(1);
+        btn.nm.setText(`[${ATTR_NAMES[c.attr] || '－'}] ${c.name}`).setAlpha(1);
         btn.ds.setText(`${c.desc}  [${(c.chargeMs/1000).toFixed(1)}s]`).setAlpha(1);
       } else { btn.charm = null; btn.bg.setAlpha(0); btn.nm.setAlpha(0); btn.ds.setAlpha(0); }
     }
@@ -470,7 +484,6 @@ class MainScene extends Phaser.Scene {
     const t = list.reduce((a, b) => a.x < b.x ? a : b);
     const dmg = Math.round(this.slashDmg * this.combo);
     this._oniDmg(t, dmg);
-    this._dmgNum(t.x, t.y, dmg, '#ffee44');
     this._slashFx(t.x, t.y);
     if (this.combo < COMBO_MAX) this.combo = Math.min(COMBO_MAX, Math.round((this.combo + COMBO_STEP) * 10) / 10);
     this.comboTimer = 0;
@@ -509,7 +522,7 @@ class MainScene extends Phaser.Scene {
   _superAtk() {
     this.gauge = 0; this._gaugeUp();
     for (const oni of this.onis.getChildren().filter(o => o.active)) {
-      this._oniDmg(oni, SUPER_DMG); this._dmgNum(oni.x, oni.y - 20, SUPER_DMG, '#ff44ff');
+      this._oniDmg(oni, SUPER_DMG);
     }
     this.ovBg.setAlpha(0.28);
     this.time.delayedCall(220, () => this.ovBg.setAlpha(0));
@@ -525,7 +538,7 @@ class MainScene extends Phaser.Scene {
     const front = list.reduce((a, b) => a.x < b.x ? a : b);
 
     if (c.id === 'water') {
-      this._spell(front, c.dmg, 0x44bbff);
+      this._spell(front, c.dmg, 0x44bbff, c.attr);
 
     } else if (c.id === 'pierce') {
       const dx = front.x - KB_X, dy = front.y - KB_Y;
@@ -533,7 +546,7 @@ class MainScene extends Phaser.Scene {
       for (const oni of list) {
         let d = Math.abs(Math.atan2(oni.y - KB_Y, oni.x - KB_X) - ang);
         if (d > Math.PI) d = 2 * Math.PI - d;
-        if (d < 0.35) { this._oniDmg(oni, c.dmg); this._dmgNum(oni.x, oni.y, c.dmg, '#ffff44'); }
+        if (d < 0.35) this._oniDmg(oni, c.dmg, c.attr);
       }
       this._beamFx(ang);
 
@@ -544,7 +557,7 @@ class MainScene extends Phaser.Scene {
       for (let i = 0; i < 5; i++) {
         const ang = base + spread * ((i / 4) - 0.5) * 2;
         const b = this.add.circle(KB_X + KB_W/2 + 4, KB_Y, 7, 0xff88aa).setDepth(3);
-        b.vx = BUL_SPD * Math.cos(ang); b.vy = BUL_SPD * Math.sin(ang); b.dmg = c.dmg;
+        b.vx = BUL_SPD * Math.cos(ang); b.vy = BUL_SPD * Math.sin(ang); b.dmg = c.dmg; b.attr = c.attr;
         this.bullets.add(b);
       }
 
@@ -552,17 +565,17 @@ class MainScene extends Phaser.Scene {
       for (let i = 0; i < 5; i++) {
         this.time.delayedCall(i * 160, () => {
           const rem = this.onis.getChildren().filter(o => o.active);
-          if (rem.length) this._spell(rem.reduce((a, b) => a.x < b.x ? a : b), c.dmg, 0x88ffaa);
+          if (rem.length) this._spell(rem.reduce((a, b) => a.x < b.x ? a : b), c.dmg, 0x88ffaa, c.attr);
         });
       }
     }
   }
 
-  _spell(t, dmg, col) {
+  _spell(t, dmg, col, attr = 'none') {
     if (!t?.active) return;
     const dx = t.x - KB_X, dy = t.y - KB_Y, len = Math.hypot(dx, dy) || 1;
     const b = this.add.circle(KB_X + KB_W/2 + 4, KB_Y, 8, col || 0x44bbff).setDepth(3);
-    b.vx = BUL_SPD * dx / len; b.vy = BUL_SPD * dy / len; b.dmg = dmg;
+    b.vx = BUL_SPD * dx / len; b.vy = BUL_SPD * dy / len; b.dmg = dmg; b.attr = attr;
     this.bullets.add(b);
   }
 
@@ -588,25 +601,35 @@ class MainScene extends Phaser.Scene {
     const bw    = named ? 52 : ONI_BW;
     const hSz   = named ? 64 : ONI_H;
     const name  = named ? NM_NAMES[Phaser.Math.Between(0, 3)] : '鬼';
-    this._makeOni(W + 22, sy, named ? 48 : ONI_W, hSz, col, stk, name, named ? '13px' : '20px', named ? '#ddaaff' : '#ffbbbb', hp, spd, dmg, bw, named ? EXP_N : EXP_G, false);
+    const attrPool = ['fire', 'water', 'earth', 'wind'];
+    const attrChance = Math.min(1, (this.wave - 2) * 0.25);
+    const attr = (this.wave >= 3 && Math.random() < attrChance) ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
+    this._makeOni(W + 22, sy, named ? 48 : ONI_W, hSz, col, stk, name, named ? '13px' : '20px', named ? '#ddaaff' : '#ffbbbb', hp, spd, dmg, bw, named ? EXP_N : EXP_G, false, attr);
   }
 
   _spawnBoss() {
     const name = BOSS_NAMES[Phaser.Math.Between(0, 2)];
-    this._makeOni(W + 36, BATTLE_H / 2, 56, 84, 0x220044, 0xff33ff, `【${name}】`, '13px', '#ff88ff', BOSS_HP, BOSS_SPD, BOSS_DMG, 72, EXP_B, true);
+    const attrPool = ['fire', 'water', 'earth', 'wind'];
+    const attr = this.wave >= 2 ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
+    this._makeOni(W + 36, BATTLE_H / 2, 56, 84, 0x220044, 0xff33ff, `【${name}】`, '13px', '#ff88ff', BOSS_HP, BOSS_SPD, BOSS_DMG, 72, EXP_B, true, attr);
   }
 
-  _makeOni(ox, oy, ow, oh, col, stk, name, fs, fc, hp, spd, dmg, bw, exp, isBoss) {
+  _makeOni(ox, oy, ow, oh, col, stk, name, fs, fc, hp, spd, dmg, bw, exp, isBoss, attr = 'none') {
     const body   = this.add.rectangle(ox, oy, ow, oh, col).setDepth(3).setStrokeStyle(isBoss ? 3 : 2, stk);
     const lbl    = this.add.text(ox, oy, name, { fontSize: fs, color: fc, fontFamily:'serif' }).setOrigin(0.5).setDepth(4);
     const barY   = oy - oh/2 - 6;
     const barH   = isBoss ? 7 : ONI_BH;
     const hpBg   = this.add.rectangle(ox - bw/2, barY, bw, barH, 0x330000).setOrigin(0, 0.5).setDepth(4);
     const hpFill = this.add.rectangle(ox - bw/2, barY, bw, barH, isBoss ? 0xff33ff : (col === 0x661199 ? 0xaa44ff : 0xff2222)).setOrigin(0, 0.5).setDepth(4);
+    let attrLbl = null;
+    if (attr !== 'none') {
+      const ac = '#' + ATTR_COLORS[attr].toString(16).padStart(6, '0');
+      attrLbl = this.add.text(ox, barY - 10, ATTR_NAMES[attr], { fontSize:'11px', color: ac, fontFamily:'serif', fontStyle:'bold', stroke:'#000', strokeThickness:2 }).setOrigin(0.5).setDepth(4);
+    }
     body.hp = body.maxHp = hp; body.atkT = 0;
-    body.lbl = lbl; body.hpBg = hpBg; body.hpFill = hpFill;
+    body.lbl = lbl; body.hpBg = hpBg; body.hpFill = hpFill; body.attrLbl = attrLbl;
     body.spd = spd; body.dmg = dmg; body.bw = bw; body.hSz = oh; body.barH = barH;
-    body.exp = exp; body.isBoss = isBoss;
+    body.exp = exp; body.isBoss = isBoss; body.attr = attr;
     this.onis.add(body);
   }
 
@@ -615,14 +638,20 @@ class MainScene extends Phaser.Scene {
     oni.lbl.setPosition(oni.x, oni.y);
     oni.hpBg.setPosition(oni.x - oni.bw/2, by);
     oni.hpFill.setPosition(oni.x - oni.bw/2, by);
+    if (oni.attrLbl) oni.attrLbl.setPosition(oni.x, by - 10);
   }
 
-  _oniRm(oni) { oni.lbl?.destroy(); oni.hpBg?.destroy(); oni.hpFill?.destroy(); oni.destroy(); }
+  _oniRm(oni) { oni.lbl?.destroy(); oni.hpBg?.destroy(); oni.hpFill?.destroy(); oni.attrLbl?.destroy(); oni.destroy(); }
 
-  _oniDmg(oni, dmg) {
+  _oniDmg(oni, rawDmg, atkAttr = 'none') {
+    if (!oni.active) return;
+    const mult = attrMult(atkAttr, oni.attr || 'none');
+    const dmg = Math.max(1, Math.round(rawDmg * mult));
     oni.hp -= dmg;
     const r = Phaser.Math.Clamp(oni.hp / oni.maxHp, 0, 1);
     oni.hpFill.setDisplaySize(oni.bw * r, oni.barH);
+    const col = mult >= 1.0 ? '#ffff44' : mult >= 0.75 ? '#ffffff' : '#888888';
+    this._dmgNum(oni.x, oni.y, dmg, col);
     if (oni.hp <= 0) { this.defeated++; this.totalExp += oni.exp; this._oniRm(oni); }
   }
 
@@ -699,8 +728,9 @@ class MainScene extends Phaser.Scene {
       } else {
         const r = Math.min(1, this.charmTimers[i] / c.chargeMs);
         const ready = r >= 1;
+        const an = ATTR_NAMES[c.attr] || '－';
         bg.setFillStyle(0x080f1a).setStrokeStyle(2, ready ? 0x44ffaa : 0x336688);
-        txt.setText(`${c.name}\n${ready ? '【発動！】' : '充填中'}`).setStyle({ color: ready ? '#88ffcc' : '#667788', fontSize:'11px', align:'center' });
+        txt.setText(`[${an}]${c.name}\n${ready ? '【発動！】' : '充填中'}`).setStyle({ color: ready ? '#88ffcc' : '#667788', fontSize:'11px', align:'center' });
         fill.setDisplaySize(CELL_W - 4, (CELL_H - 4) * r);
       }
     }
@@ -710,9 +740,10 @@ class MainScene extends Phaser.Scene {
     const c = this.slotCharms[idx]; if (!c) return;
     const r = Math.min(1, this.charmTimers[idx] / c.chargeMs);
     const ready = r >= 1;
+    const an = ATTR_NAMES[c.attr] || '－';
     this.cFill[idx].setDisplaySize(CELL_W - 4, (CELL_H - 4) * r);
     this.cBg[idx].setStrokeStyle(2, ready ? 0x44ffaa : 0x336688);
-    this.cTxt[idx].setText(`${c.name}\n${ready ? '【発動！】' : '充填中'}`).setStyle({ color: ready ? '#88ffcc' : '#667788', fontSize:'11px', align:'center' });
+    this.cTxt[idx].setText(`[${an}]${c.name}\n${ready ? '【発動！】' : '充填中'}`).setStyle({ color: ready ? '#88ffcc' : '#667788', fontSize:'11px', align:'center' });
   }
 }
 
