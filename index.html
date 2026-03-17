@@ -21,40 +21,78 @@
 <script>
 'use strict';
 
-/* ── Canvas size ────────────────────────────── */
+/* ── Layout ────────────────────────────────── */
 const W        = 390;
 const H        = 844;
-const BATTLE_H = 380;   // top 45% — battle area
+const BATTLE_H = 330;
 const UI_Y0    = BATTLE_H;
+const UI_H     = H - BATTLE_H; // 514
+
+// UI sub-regions
+const HDR_H      = 42;
+const GRID_TOP   = UI_Y0 + HDR_H;         // 372
+const CELL_W     = 120;
+const CELL_H     = 70;
+const GRID_COLS  = 3;
+const GRID_ROWS  = 3;
+const GRID_X0    = (W - CELL_W * GRID_COLS) / 2; // 15
+const GRID_BOT   = GRID_TOP + CELL_H * GRID_ROWS; // 582
+const SLASH_Y    = GRID_BOT + 6;          // 588
+const SLASH_H    = 76;
+const DESC_Y     = SLASH_Y + SLASH_H + 6; // 670
 
 /* ── Kibitsu ────────────────────────────────── */
 const KB_X      = 72;
 const KB_Y      = BATTLE_H / 2;
-const KB_HP_MAX = 300;
 const KB_W      = 42;
 const KB_H_SZ   = 64;
 
-/* ── Oni (demon) ────────────────────────────── */
-const ONI_HP_MAX   = 80;
-const ONI_SPEED    = 55;    // px / s
-const ONI_DMG      = 15;    // damage per hit
-const ONI_ATK_MS   = 2000;  // ms between attacks
-const ONI_RANGE    = 75;    // stop moving when ≤ this px from KB center
-const ONI_SPAWN_MS = 2000;  // ms between spawns
+/* ── Oni (grunt) ────────────────────────────── */
+const ONI_HP_MAX   = 128;
+const ONI_SPEED    = 55;
+const ONI_DMG      = 15;
+const ONI_ATK_MS   = 2000;
+const ONI_RANGE    = 75;
+const ONI_SPAWN_MS = 2000;
 const ONI_PER_WAVE = 10;
 const ONI_W        = 38;
 const ONI_H_SZ     = 54;
 const ONI_BAR_W    = 38;
 const ONI_BAR_H    = 5;
 
-/* ── Water bullet ───────────────────────────── */
+/* ── Named oni (wave 2+) ────────────────────── */
+const NAMED_HP    = 320;
+const NAMED_SPD   = 35;
+const NAMED_DMG   = 25;
+const NAMED_LIST  = ['茨木鬼', '酒呑童子', '大嶽丸', '星熊童子'];
+
+/* ── Bullet ─────────────────────────────────── */
 const BUL_DMG   = 20;
-const BUL_MS    = 1300;  // ms between shots
-const BUL_SPD   = 300;   // px / s
-const BUL_RANGE = 320;   // max range from KB
+const BUL_MS    = 1300;
+const BUL_SPD   = 300;
+const BUL_RANGE = 320;
 
 /* ── Slash ──────────────────────────────────── */
-const SLASH_DMG = 90;    // one-shots a normal oni
+// 16 taps at base dmg kills grunt: 128/8=16
+const SLASH_BASE     = 8;
+const COMBO_STEP     = 0.1;
+const COMBO_MAX      = 1.3;
+const COMBO_RESET_MS = 1500;
+const GAUGE_MAX      = 100;
+const GAUGE_PER_HIT  = 6;   // slow fill
+const SUPER_DMG      = 250;
+
+/* ── EXP ────────────────────────────────────── */
+const EXP_GRUNT = 10;
+const EXP_NAMED = 30;
+
+/* ── Charms ─────────────────────────────────── */
+const CHARM_DEFS = [
+  { id:'water',   name:'水弾符', desc:'最も近い敵に水弾を放つ',       dmg:35,  chargeMs:2500, color:0x44aaff },
+  { id:'pierce',  name:'貫通符', desc:'全敵を貫くビームを放つ',        dmg:60,  chargeMs:4000, color:0xffee44 },
+  { id:'scatter', name:'拡散符', desc:'複数の敵に拡散弾を放つ',       dmg:28,  chargeMs:2800, color:0xff88aa },
+  { id:'rapid',   name:'連射符', desc:'素早く5連射する（威力低め）',  dmg:12,  chargeMs:900,  color:0x88ffaa },
+];
 
 /* ══════════════════════════════════════════════
    Main Scene
@@ -62,110 +100,79 @@ const SLASH_DMG = 90;    // one-shots a normal oni
 class MainScene extends Phaser.Scene {
   constructor() { super({ key: 'MainScene' }); }
 
-  /* ── create ───────────────────────────────── */
   create() {
-    /* state */
-    this.kbHP       = KB_HP_MAX;
-    this.wave       = 1;
-    this.spawned    = 0;
-    this.defeated   = 0;
-    this.spawnTimer = 0;
-    this.bulTimer   = 0;
-    this.dead       = false;
-    this.waveDone   = false;
+    /* ── state ── */
+    this.kbHP         = 300;
+    this.kbHPMax      = 300;
+    this.wave         = 1;
+    this.spawned      = 0;
+    this.defeated     = 0;
+    this.spawnTimer   = 0;
+    this.bulTimer     = 0;
+    this.dead         = false;
+    this.waveDone     = false;
+    this.phase        = 'battle'; // 'battle' | 'result'
+    this.totalExp     = 0;
 
-    /* ── background ─── */
-    // battle sky
-    this.add.rectangle(W/2, BATTLE_H/2, W, BATTLE_H, 0x1a2e20).setDepth(0);
-    // ground strip
-    this.add.rectangle(W/2, BATTLE_H - 16, W, 32, 0x3a2910).setDepth(0);
-    // sky gradient hint
-    this.add.rectangle(W/2, 6, W, 12, 0x223344).setDepth(0);
-    // UI area
-    this.add.rectangle(W/2, BATTLE_H + (H - BATTLE_H)/2, W, H - BATTLE_H, 0x0c100c).setDepth(0);
-    // divider
-    this.add.rectangle(W/2, BATTLE_H + 1, W, 3, 0x44664a).setDepth(0);
+    this.slashDmg     = SLASH_BASE;
+    this.combo        = 1.0;
+    this.comboTimer   = 0;
+    this.gauge        = 0;
 
-    /* ── gate (left wall) ── */
-    this.add.rectangle(20, BATTLE_H/2, 40, BATTLE_H, 0x6e4e12).setDepth(1);
-    this.add.rectangle(20, BATTLE_H/2, 40, BATTLE_H).setStrokeStyle(2, 0xb89a30).setDepth(2);
-    this.add.rectangle(10, BATTLE_H/2, 12, BATTLE_H, 0x7a5a18).setDepth(1);
-    this.add.rectangle(30, BATTLE_H/2, 12, BATTLE_H, 0x7a5a18).setDepth(1);
-    this.add.rectangle(20, 50, 46, 12, 0x8a6a22).setDepth(2);
-    this.add.text(20, 20, '門', {
-      fontSize: '12px', color: '#ccaa44', fontFamily: 'serif'
-    }).setOrigin(0.5).setDepth(3);
+    this.unlockedSlots = 0;
+    this.slotCharms    = new Array(9).fill(null);
+    this.charmTimers   = new Array(9).fill(0);
+    this.ownedCharms   = CHARM_DEFS.map(c => Object.assign({}, c)); // copies
 
-    /* ── Kibitsu sprite ── */
-    this.kbBody = this.add.rectangle(KB_X, KB_Y, KB_W, KB_H_SZ, 0x2255bb).setDepth(3);
-    this.kbBody.setStrokeStyle(2, 0x88aaff);
-    this.add.text(KB_X, KB_Y - 8, 'キビツ', {
-      fontSize: '11px', color: '#ccdeff', fontFamily: 'serif'
-    }).setOrigin(0.5).setDepth(4);
+    this._charmPickVisible = false;
+    this._upgVisible       = false;
 
-    // Kibitsu HP bar
-    this.add.rectangle(KB_X, KB_Y - 48, 54, 9, 0x220000).setDepth(4);
-    this.kbHpBg = this.add.rectangle(KB_X - 27, KB_Y - 48, 54, 9, 0x440000)
-      .setOrigin(0, 0.5).setDepth(4);
-    this.kbHpBar = this.add.rectangle(KB_X - 27, KB_Y - 48, 54, 9, 0x22dd55)
-      .setOrigin(0, 0.5).setDepth(4);
+    /* ── build ── */
+    this._buildBG();
+    this._buildKibitsu();
+    this._buildHdrUI();
+    this._buildGridUI();
+    this._buildSlashArea();
+    this._buildDescArea();
+    this._buildBattleOverlay();
+    this._buildResultScreen();
+    this._buildCharmPickScreen();
+    this._buildUpgradeScreen();
 
-    /* ── groups ── */
     this.onis    = this.add.group();
     this.bullets = this.add.group();
+    this.slashGfx = this.add.graphics().setDepth(10);
 
-    /* ── slash effect ── */
-    this.slashFx = this.add.text(0, 0, '斬!', {
-      fontSize: '42px', color: '#ffee00',
-      stroke: '#ff6600', strokeThickness: 5,
-      fontFamily: 'serif', fontStyle: 'bold'
-    }).setOrigin(0.5).setAlpha(0).setDepth(10);
-
-    /* ── overlay panel ── */
-    this.panelBg    = this.add.rectangle(W/2, BATTLE_H/2, W, BATTLE_H, 0x000000)
-      .setAlpha(0).setDepth(12);
-    this.panelTitle = this.add.text(W/2, BATTLE_H/2 - 30, '', {
-      fontSize: '48px', fontFamily: 'serif', fontStyle: 'bold',
-      stroke: '#000000', strokeThickness: 8
-    }).setOrigin(0.5).setAlpha(0).setDepth(13);
-    this.panelSub   = this.add.text(W/2, BATTLE_H/2 + 40, '', {
-      fontSize: '20px', color: '#eeeeee', fontFamily: 'Arial'
-    }).setOrigin(0.5).setAlpha(0).setDepth(13);
-
-    /* ── UI labels ── */
-    this.waveText = this.add.text(W/2, UI_Y0 + 18, `WAVE ${this.wave}`, {
-      fontSize: '24px', color: '#ddcc44', fontFamily: 'serif', fontStyle: 'bold'
-    }).setOrigin(0.5).setDepth(5);
-
-    this.countText = this.add.text(W/2, UI_Y0 + 56, '', {
-      fontSize: '15px', color: '#cc9988', fontFamily: 'Arial'
-    }).setOrigin(0.5).setDepth(5);
-
-    this.kbHpText = this.add.text(14, UI_Y0 + 14, '', {
-      fontSize: '14px', color: '#88aaff', fontFamily: 'Arial'
-    }).setDepth(5);
-
-    this.add.text(W/2, BATTLE_H - 22, '[ 戦闘エリアタップ → 斬撃 ]', {
-      fontSize: '11px', color: '#ffffff33', fontFamily: 'Arial'
-    }).setOrigin(0.5).setDepth(5);
-
-    /* ── input ── */
-    this.input.on('pointerdown', (ptr) => {
-      if (this.dead) {
-        this.scene.restart();
-      } else if (ptr.y < BATTLE_H && !this.waveDone) {
-        this._slash();
-      }
-    });
-
-    this._updateUI();
+    this.input.on('pointerdown', ptr => this._onTap(ptr));
+    this._updateHdrUI();
+    this._updateGrid();
   }
 
-  /* ── update ───────────────────────────────── */
-  update(_time, delta) {
+  /* ── update ─────────────────────────────── */
+  update(_t, delta) {
     if (this.dead || this.waveDone) return;
 
-    /* spawn */
+    // Combo decay
+    if (this.combo > 1.0) {
+      this.comboTimer += delta;
+      if (this.comboTimer >= COMBO_RESET_MS) {
+        this.combo = 1.0;
+        this.comboTimer = 0;
+        this._refreshSlashLabel();
+      }
+    }
+
+    // Charm charge
+    for (let i = 0; i < 9; i++) {
+      if (!this.slotCharms[i]) continue;
+      const c = this.slotCharms[i];
+      if (this.charmTimers[i] < c.chargeMs) {
+        this.charmTimers[i] += delta;
+        this._updateCell(i);
+      }
+    }
+
+    // Spawn
     if (this.spawned < ONI_PER_WAVE) {
       this.spawnTimer += delta;
       if (this.spawnTimer >= ONI_SPAWN_MS) {
@@ -174,133 +181,555 @@ class MainScene extends Phaser.Scene {
       }
     }
 
-    /* move / attack onis */
-    const oniList = this.onis.getChildren();
-    for (let i = oniList.length - 1; i >= 0; i--) {
-      const oni = oniList[i];
+    // Oni AI
+    for (const oni of [...this.onis.getChildren()]) {
       if (!oni.active) continue;
-
       if (oni.x - KB_X > ONI_RANGE) {
-        oni.x -= ONI_SPEED * (delta / 1000);
+        oni.x -= oni.spd * (delta / 1000);
       } else {
         oni.atkTimer += delta;
         if (oni.atkTimer >= ONI_ATK_MS) {
           oni.atkTimer -= ONI_ATK_MS;
-          this._kbDmg(ONI_DMG);
+          this._kbDmg(oni.dmg);
         }
       }
       this._syncOniUI(oni);
-
       if (oni.x < -60) this._removeOni(oni);
     }
 
-    /* auto-fire */
+    // Auto bullet
     this.bulTimer += delta;
     if (this.bulTimer >= BUL_MS) {
       this.bulTimer -= BUL_MS;
       this._fireBullet();
     }
 
-    /* move bullets + collision */
-    const bulList = this.bullets.getChildren();
-    for (let i = bulList.length - 1; i >= 0; i--) {
-      const b = bulList[i];
+    // Move bullets + hit
+    const oniList = this.onis.getChildren();
+    for (const b of [...this.bullets.getChildren()]) {
       if (!b.active) continue;
-
       b.x += b.vx * (delta / 1000);
       b.y += b.vy * (delta / 1000);
-
       if (b.x > KB_X + BUL_RANGE || b.x > W + 20 || b.y < 0 || b.y > BATTLE_H) {
-        b.destroy();
-        continue;
+        b.destroy(); continue;
       }
-
-      let hit = false;
       for (const oni of oniList) {
         if (!oni.active) continue;
         if (Phaser.Math.Distance.Between(b.x, b.y, oni.x, oni.y) < 26) {
+          const d = b.dmg || BUL_DMG;
           b.destroy();
-          this._oniDmg(oni, BUL_DMG);
-          hit = true;
+          this._oniDmg(oni, d);
           break;
         }
       }
-      if (hit) continue;
     }
 
-    /* wave clear check */
+    // Wave clear
     if (this.spawned >= ONI_PER_WAVE && this.onis.countActive(true) === 0) {
       this._waveClear();
     }
 
-    this._updateUI();
+    this._updateHdrUI();
   }
 
-  /* ── helpers ──────────────────────────────── */
+  /* ── Build BG ───────────────────────────── */
+  _buildBG() {
+    this.add.rectangle(W/2, BATTLE_H/2, W, BATTLE_H, 0x1a2e20).setDepth(0);
+    this.add.rectangle(W/2, BATTLE_H - 16, W, 32, 0x3a2910).setDepth(0);
+    this.add.rectangle(W/2, 6, W, 12, 0x223344).setDepth(0);
+    this.add.rectangle(W/2, UI_Y0 + UI_H/2, W, UI_H, 0x0c100c).setDepth(0);
+    this.add.rectangle(W/2, UI_Y0 + 1, W, 3, 0x44664a).setDepth(0);
+    // Gate
+    this.add.rectangle(20, BATTLE_H/2, 40, BATTLE_H, 0x6e4e12).setDepth(1);
+    this.add.rectangle(20, BATTLE_H/2, 40, BATTLE_H).setStrokeStyle(2, 0xb89a30).setDepth(2);
+    this.add.text(20, 20, '門', { fontSize:'12px', color:'#ccaa44', fontFamily:'serif' }).setOrigin(0.5).setDepth(3);
+  }
+
+  /* ── Build Kibitsu ──────────────────────── */
+  _buildKibitsu() {
+    this.kbBody = this.add.rectangle(KB_X, KB_Y, KB_W, KB_H_SZ, 0x2255bb).setDepth(3);
+    this.kbBody.setStrokeStyle(2, 0x88aaff);
+    this.add.text(KB_X, KB_Y - 8, 'キビツ', { fontSize:'11px', color:'#ccdeff', fontFamily:'serif' }).setOrigin(0.5).setDepth(4);
+    this.add.rectangle(KB_X, KB_Y - 48, 54, 9, 0x220000).setDepth(4);
+    this.kbHpBar = this.add.rectangle(KB_X - 27, KB_Y - 48, 54, 9, 0x22dd55).setOrigin(0, 0.5).setDepth(4);
+  }
+
+  /* ── Build header UI ────────────────────── */
+  _buildHdrUI() {
+    this.kbHpText = this.add.text(14, UI_Y0 + 6, '', { fontSize:'13px', color:'#88aaff', fontFamily:'Arial' }).setDepth(5);
+    this.waveText = this.add.text(W/2, UI_Y0 + 14, 'WAVE 1', { fontSize:'21px', color:'#ddcc44', fontFamily:'serif', fontStyle:'bold' }).setOrigin(0.5).setDepth(5);
+    this.expText  = this.add.text(W - 14, UI_Y0 + 6, '', { fontSize:'13px', color:'#aaee88', fontFamily:'Arial' }).setOrigin(1,0).setDepth(5);
+  }
+
+  /* ── Build 9-cell grid ──────────────────── */
+  _buildGridUI() {
+    this.cellBgs  = [];
+    this.cellFill = [];
+    this.cellTxt  = [];
+    for (let i = 0; i < 9; i++) {
+      const col = i % GRID_COLS;
+      const row = Math.floor(i / GRID_COLS);
+      const cx  = GRID_X0 + col * CELL_W + CELL_W / 2;
+      const cy  = GRID_TOP + row * CELL_H + CELL_H / 2;
+      const bg  = this.add.rectangle(cx, cy, CELL_W - 4, CELL_H - 4, 0x080812).setStrokeStyle(1, 0x334433).setDepth(5);
+      const fill = this.add.rectangle(cx - (CELL_W-4)/2, cy, 0, CELL_H - 4, 0x1a3322).setOrigin(0, 0.5).setDepth(5);
+      const txt  = this.add.text(cx, cy, '', { fontSize:'11px', color:'#888888', fontFamily:'serif', align:'center' }).setOrigin(0.5).setDepth(6);
+      this.cellBgs.push(bg);
+      this.cellFill.push(fill);
+      this.cellTxt.push(txt);
+    }
+  }
+
+  /* ── Build slash area ───────────────────── */
+  _buildSlashArea() {
+    this.slashAreaBg = this.add.rectangle(W/2, SLASH_Y + SLASH_H/2, W - 20, SLASH_H, 0x141422)
+      .setStrokeStyle(2, 0x4444aa).setDepth(5);
+
+    this.slashLbl = this.add.text(W/2, SLASH_Y + SLASH_H/2 - 10, '⚔  斬撃', {
+      fontSize:'20px', color:'#ffdd88', fontFamily:'serif', fontStyle:'bold'
+    }).setOrigin(0.5).setDepth(6);
+
+    this.comboLbl = this.add.text(W/2, SLASH_Y + SLASH_H/2 + 12, '', {
+      fontSize:'12px', color:'#ffaa44', fontFamily:'Arial'
+    }).setOrigin(0.5).setDepth(6);
+
+    // Gauge bar
+    const gy = SLASH_Y + SLASH_H - 9;
+    this.add.rectangle(W/2, gy, W - 40, 8, 0x111122).setDepth(6);
+    this.gaugeBar = this.add.rectangle(20, gy, 0, 8, 0xaa44ff).setOrigin(0, 0.5).setDepth(7);
+  }
+
+  /* ── Build desc area ────────────────────── */
+  _buildDescArea() {
+    this.descText = this.add.text(W/2, DESC_Y + 12, '呪符枠をタップして配置', {
+      fontSize:'12px', color:'#778866', fontFamily:'serif', align:'center'
+    }).setOrigin(0.5).setDepth(5);
+  }
+
+  /* ── Battle overlay (wave clear / game over) */
+  _buildBattleOverlay() {
+    this.ovBg    = this.add.rectangle(W/2, BATTLE_H/2, W, BATTLE_H, 0x000000).setAlpha(0).setDepth(12);
+    this.ovTitle = this.add.text(W/2, BATTLE_H/2 - 30, '', {
+      fontSize:'46px', fontFamily:'serif', fontStyle:'bold', stroke:'#000000', strokeThickness:8
+    }).setOrigin(0.5).setAlpha(0).setDepth(13);
+    this.ovSub   = this.add.text(W/2, BATTLE_H/2 + 40, '', {
+      fontSize:'19px', color:'#eeeeee', fontFamily:'Arial'
+    }).setOrigin(0.5).setAlpha(0).setDepth(13);
+  }
+
+  /* ── Result screen (replaces UI area) ───── */
+  _buildResultScreen() {
+    const base = UI_Y0;
+    this.resBg    = this.add.rectangle(W/2, base + UI_H/2, W, UI_H, 0x050a05).setAlpha(0).setDepth(14);
+    this.resTitle = this.add.text(W/2, base + 22, '', {
+      fontSize:'18px', color:'#ddcc44', fontFamily:'serif', fontStyle:'bold'
+    }).setOrigin(0.5).setAlpha(0).setDepth(15);
+    this.resExpTxt = this.add.text(W/2, base + 50, '', {
+      fontSize:'13px', color:'#aaeebb', fontFamily:'Arial'
+    }).setOrigin(0.5).setAlpha(0).setDepth(15);
+
+    const labels = ['呪符を選ぶ', 'キビツを強化する', '次のWAVEへ'];
+    this.resBtns = labels.map((lbl, i) => {
+      const by = base + 90 + i * 80;
+      const bg  = this.add.rectangle(W/2, by, W - 40, 64, 0x0f1f0f).setStrokeStyle(2, 0x44aa44).setAlpha(0).setDepth(15);
+      const txt = this.add.text(W/2, by, lbl, { fontSize:'18px', color:'#cceecc', fontFamily:'serif' }).setOrigin(0.5).setAlpha(0).setDepth(16);
+      return { bg, txt, i };
+    });
+  }
+
+  /* ── Charm pick screen ──────────────────── */
+  _buildCharmPickScreen() {
+    const base = UI_Y0;
+    this.cpBg    = this.add.rectangle(W/2, base + UI_H/2, W, UI_H, 0x030508).setAlpha(0).setDepth(17);
+    this.cpTitle = this.add.text(W/2, base + 18, '', { fontSize:'17px', color:'#ffdd88', fontFamily:'serif', fontStyle:'bold' }).setOrigin(0.5).setAlpha(0).setDepth(18);
+    this.cpBtns  = [];
+    for (let i = 0; i < 4; i++) {
+      const by = base + 62 + i * 96;
+      const bg  = this.add.rectangle(W/2, by, W - 36, 84, 0x0a1520).setStrokeStyle(2, 0x3366aa).setAlpha(0).setDepth(18);
+      const nm  = this.add.text(W/2, by - 18, '', { fontSize:'16px', color:'#88ccff', fontFamily:'serif', fontStyle:'bold' }).setOrigin(0.5).setAlpha(0).setDepth(19);
+      const ds  = this.add.text(W/2, by + 10, '', { fontSize:'12px', color:'#aabbcc', fontFamily:'Arial', align:'center' }).setOrigin(0.5).setAlpha(0).setDepth(19);
+      this.cpBtns.push({ bg, nm, ds, charm: null });
+    }
+    this.cpCancel = this.add.text(W/2, base + UI_H - 24, '戻る', { fontSize:'14px', color:'#556655', fontFamily:'Arial' }).setOrigin(0.5).setAlpha(0).setDepth(19);
+  }
+
+  /* ── Upgrade screen ─────────────────────── */
+  _buildUpgradeScreen() {
+    const base = UI_Y0;
+    this.upgBg     = this.add.rectangle(W/2, base + UI_H/2, W, UI_H, 0x050308).setAlpha(0).setDepth(17);
+    this.upgTitle  = this.add.text(W/2, base + 18, 'キビツを強化する', { fontSize:'17px', color:'#ffcc88', fontFamily:'serif', fontStyle:'bold' }).setOrigin(0.5).setAlpha(0).setDepth(18);
+    this.upgExpTxt = this.add.text(W/2, base + 48, '', { fontSize:'13px', color:'#aaeeaa', fontFamily:'Arial' }).setOrigin(0.5).setAlpha(0).setDepth(18);
+
+    const items = [
+      { label:'HP強化',   key:'hp',    cost:20, desc:'+30 最大HP' },
+      { label:'斬撃強化', key:'slash',  cost:25, desc:'基本威力 +2' },
+      { label:'詠唱短縮', key:'cast',   cost:20, desc:'チャージ速度 +15%' },
+    ];
+    this.upgBtns = items.map((item, i) => {
+      const by = base + 90 + i * 90;
+      const bg  = this.add.rectangle(W/2, by, W - 40, 74, 0x100a1a).setStrokeStyle(2, 0x664488).setAlpha(0).setDepth(18);
+      const lbl = this.add.text(W/2, by - 14, '', { fontSize:'15px', color:'#ccaaff', fontFamily:'serif' }).setOrigin(0.5).setAlpha(0).setDepth(19);
+      const ds  = this.add.text(W/2, by + 12, '', { fontSize:'12px', color:'#998899', fontFamily:'Arial' }).setOrigin(0.5).setAlpha(0).setDepth(19);
+      return { bg, lbl, ds, item };
+    });
+    this.upgCancel = this.add.text(W/2, base + UI_H - 24, '戻る', { fontSize:'14px', color:'#665566', fontFamily:'Arial' }).setOrigin(0.5).setAlpha(0).setDepth(19);
+  }
+
+  /* ── Input ──────────────────────────────── */
+  _onTap(ptr) {
+    const { x, y } = ptr;
+    if (this.dead) { this.scene.restart(); return; }
+
+    if (this._upgVisible)       { this._handleUpgTap(x, y); return; }
+    if (this._charmPickVisible) { this._handleCpTap(x, y);  return; }
+    if (this.phase === 'result'){ this._handleResultTap(x, y); return; }
+
+    // Battle area — no tap action there
+    if (y < BATTLE_H) return;
+
+    // Slash area
+    if (y >= SLASH_Y && y < SLASH_Y + SLASH_H) {
+      this._doSlash(); return;
+    }
+
+    // Grid
+    if (y >= GRID_TOP && y < GRID_BOT) {
+      const col = Math.floor((x - GRID_X0) / CELL_W);
+      const row = Math.floor((y - GRID_TOP) / CELL_H);
+      if (col >= 0 && col < 3 && row >= 0 && row < 3) {
+        this._onCellTap(row * 3 + col);
+      }
+    }
+  }
+
+  _onCellTap(idx) {
+    if (this.waveDone) return;
+    if (idx >= this.unlockedSlots) return;
+    const charm = this.slotCharms[idx];
+    if (!charm) {
+      this._openCharmPick('place', idx);
+    } else if (this.charmTimers[idx] >= charm.chargeMs) {
+      this._useCharm(idx);
+    }
+  }
+
+  /* ── Charm pick ─────────────────────────── */
+  _openCharmPick(mode, slotIdx) {
+    this._cpMode     = mode;
+    this._cpSlot     = slotIdx;
+    this._charmPickVisible = true;
+
+    let choices;
+    if (mode === 'place') {
+      choices = this.ownedCharms.slice(0, 4);
+      this.cpTitle.setText('呪符を配置する');
+    } else {
+      choices = [...CHARM_DEFS].sort(() => Math.random() - 0.5).slice(0, 3);
+      this.cpTitle.setText('呪符を1つ選ぶ（3択）');
+    }
+
+    this.cpBg.setAlpha(0.97);
+    this.cpTitle.setAlpha(1);
+    this.cpCancel.setAlpha(1);
+
+    for (let i = 0; i < 4; i++) {
+      const btn = this.cpBtns[i];
+      const c   = choices[i];
+      if (c) {
+        btn.charm = c;
+        btn.bg.setAlpha(1);
+        btn.nm.setText(c.name).setAlpha(1);
+        btn.ds.setText(`${c.desc}  [${(c.chargeMs/1000).toFixed(1)}s]`).setAlpha(1);
+      } else {
+        btn.charm = null;
+        btn.bg.setAlpha(0); btn.nm.setAlpha(0); btn.ds.setAlpha(0);
+      }
+    }
+  }
+
+  _handleCpTap(x, y) {
+    const base = UI_Y0;
+    if (Math.abs(y - (base + UI_H - 24)) < 22) { this._closeCp(); return; }
+    for (let i = 0; i < 4; i++) {
+      const by = base + 62 + i * 96;
+      if (Math.abs(y - by) < 46 && this.cpBtns[i].charm) {
+        const c = this.cpBtns[i].charm;
+        if (this._cpMode === 'place') {
+          this.slotCharms[this._cpSlot] = c;
+          this.charmTimers[this._cpSlot] = 0;
+          this._updateGrid();
+        } else {
+          if (!this.ownedCharms.find(o => o.id === c.id)) {
+            this.ownedCharms.push(Object.assign({}, c));
+          }
+        }
+        this._closeCp();
+        return;
+      }
+    }
+  }
+
+  _closeCp() {
+    this._charmPickVisible = false;
+    this.cpBg.setAlpha(0); this.cpTitle.setAlpha(0); this.cpCancel.setAlpha(0);
+    for (const b of this.cpBtns) { b.bg.setAlpha(0); b.nm.setAlpha(0); b.ds.setAlpha(0); }
+  }
+
+  /* ── Result ─────────────────────────────── */
+  _handleResultTap(x, y) {
+    for (const btn of this.resBtns) {
+      const by = UI_Y0 + 90 + btn.i * 80;
+      if (Math.abs(y - by) < 36) {
+        if (btn.i === 0)      this._openCharmPick('result', -1);
+        else if (btn.i === 1) this._openUpgScreen();
+        else                  { this._closeResult(); this._nextWave(); }
+        return;
+      }
+    }
+  }
+
+  _openResult() {
+    this.phase = 'result';
+    this.resBg.setAlpha(0.97);
+    this.resTitle.setText(`WAVE ${this.wave} クリア！`).setAlpha(1);
+    this.resExpTxt.setText(`EXP: ${this.totalExp}`).setAlpha(1);
+    for (const b of this.resBtns) { b.bg.setAlpha(1); b.txt.setAlpha(1); }
+  }
+
+  _closeResult() {
+    this.phase = 'battle';
+    this.resBg.setAlpha(0); this.resTitle.setAlpha(0); this.resExpTxt.setAlpha(0);
+    for (const b of this.resBtns) { b.bg.setAlpha(0); b.txt.setAlpha(0); }
+  }
+
+  /* ── Upgrade ────────────────────────────── */
+  _openUpgScreen() {
+    this._upgVisible = true;
+    this.upgBg.setAlpha(0.97);
+    this.upgTitle.setAlpha(1);
+    this.upgCancel.setAlpha(1);
+    this._refreshUpg();
+  }
+
+  _refreshUpg() {
+    this.upgExpTxt.setText(`所持EXP: ${this.totalExp}`).setAlpha(1);
+    for (const b of this.upgBtns) {
+      b.bg.setAlpha(1);
+      b.lbl.setText(`${b.item.label}  [${b.item.cost} EXP]`).setAlpha(1);
+      b.ds.setText(b.item.desc).setAlpha(1);
+    }
+  }
+
+  _handleUpgTap(x, y) {
+    const base = UI_Y0;
+    if (Math.abs(y - (base + UI_H - 24)) < 22) { this._closeUpg(); return; }
+    for (let i = 0; i < this.upgBtns.length; i++) {
+      const by = base + 90 + i * 90;
+      if (Math.abs(y - by) < 40) {
+        const { cost, key } = this.upgBtns[i].item;
+        if (this.totalExp >= cost) {
+          this.totalExp -= cost;
+          this._applyUpg(key);
+          this._refreshUpg();
+        }
+        return;
+      }
+    }
+  }
+
+  _applyUpg(key) {
+    if (key === 'hp') {
+      this.kbHPMax += 30;
+      this.kbHP = Math.min(this.kbHP + 30, this.kbHPMax);
+    } else if (key === 'slash') {
+      this.slashDmg += 2;
+    } else if (key === 'cast') {
+      for (const c of this.ownedCharms) {
+        c.chargeMs = Math.max(400, Math.round(c.chargeMs * 0.85));
+      }
+    }
+  }
+
+  _closeUpg() {
+    this._upgVisible = false;
+    this.upgBg.setAlpha(0); this.upgTitle.setAlpha(0); this.upgExpTxt.setAlpha(0); this.upgCancel.setAlpha(0);
+    for (const b of this.upgBtns) { b.bg.setAlpha(0); b.lbl.setAlpha(0); b.ds.setAlpha(0); }
+  }
+
+  /* ── Slash ──────────────────────────────── */
+  _doSlash() {
+    const list = this.onis.getChildren().filter(o => o.active);
+    if (!list.length) return;
+    const target = list.reduce((a, b) => a.x < b.x ? a : b);
+
+    const dmg = Math.round(this.slashDmg * this.combo);
+    this._oniDmg(target, dmg);
+    this._showDmgNum(target.x, target.y, dmg, '#ffee44');
+    this._drawSlashLine(target.x, target.y);
+
+    // Combo ramp
+    if (this.combo < COMBO_MAX) {
+      this.combo = Math.min(COMBO_MAX, Math.round((this.combo + COMBO_STEP) * 10) / 10);
+    }
+    this.comboTimer = 0;
+
+    // Gauge
+    this.gauge = Math.min(GAUGE_MAX, this.gauge + GAUGE_PER_HIT);
+    this._refreshGauge();
+    if (this.gauge >= GAUGE_MAX) this._superAtk();
+
+    this._refreshSlashLabel();
+  }
+
+  _drawSlashLine(tx, ty) {
+    this.slashGfx.clear();
+    this.slashGfx.lineStyle(3, 0xffffff, 1.0);
+    this.slashGfx.beginPath();
+    this.slashGfx.moveTo(tx - 28, ty - 28);
+    this.slashGfx.lineTo(tx + 28, ty + 28);
+    this.slashGfx.strokePath();
+    this.slashGfx.lineStyle(2, 0xffcc44, 0.7);
+    this.slashGfx.beginPath();
+    this.slashGfx.moveTo(tx - 18, ty - 32);
+    this.slashGfx.lineTo(tx + 26, ty + 22);
+    this.slashGfx.strokePath();
+    this.tweens.add({
+      targets: this.slashGfx, alpha: 0, duration: 180,
+      onComplete: () => { this.slashGfx.clear(); this.slashGfx.setAlpha(1); }
+    });
+  }
+
+  _superAtk() {
+    this.gauge = 0;
+    this._refreshGauge();
+    for (const oni of this.onis.getChildren().filter(o => o.active)) {
+      this._oniDmg(oni, SUPER_DMG);
+      this._showDmgNum(oni.x, oni.y - 20, SUPER_DMG, '#ff44ff');
+    }
+    this.ovBg.setAlpha(0.25);
+    this.time.delayedCall(200, () => this.ovBg.setAlpha(0));
+  }
+
+  _refreshSlashLabel() {
+    this.comboLbl.setText(this.combo > 1.0 ? `COMBO ×${this.combo.toFixed(1)}` : '');
+  }
+
+  _refreshGauge() {
+    this.gaugeBar.setDisplaySize((W - 40) * (this.gauge / GAUGE_MAX), 8);
+  }
+
+  /* ── Charm use ──────────────────────────── */
+  _useCharm(idx) {
+    const c = this.slotCharms[idx];
+    this.charmTimers[idx] = 0;
+    this._updateCell(idx);
+    this.descText.setText(`${c.name} 発動！`);
+
+    const list = this.onis.getChildren().filter(o => o.active);
+    if (!list.length) return;
+
+    if (c.id === 'water') {
+      const t = list.reduce((a, b) => a.x < b.x ? a : b);
+      this._fireSpell(t, c.dmg);
+    } else if (c.id === 'pierce') {
+      for (const oni of list) { this._oniDmg(oni, c.dmg); this._showDmgNum(oni.x, oni.y, c.dmg, '#ffff44'); }
+      this._drawBeamFx();
+    } else if (c.id === 'scatter') {
+      const targets = [...list].sort(() => Math.random() - 0.5).slice(0, 4);
+      for (const t of targets) this._fireSpell(t, c.dmg);
+    } else if (c.id === 'rapid') {
+      for (let i = 0; i < 5; i++) {
+        this.time.delayedCall(i * 160, () => {
+          const rem = this.onis.getChildren().filter(o => o.active);
+          if (rem.length) this._fireSpell(rem.reduce((a, b) => a.x < b.x ? a : b), c.dmg);
+        });
+      }
+    }
+  }
+
+  _fireSpell(target, dmg) {
+    if (!target?.active) return;
+    const dx = target.x - KB_X, dy = target.y - KB_Y;
+    const len = Math.hypot(dx, dy) || 1;
+    const b = this.add.circle(KB_X + KB_W/2 + 4, KB_Y, 8, 0x44bbff).setDepth(3);
+    b.vx = BUL_SPD * dx / len; b.vy = BUL_SPD * dy / len; b.dmg = dmg;
+    this.bullets.add(b);
+  }
+
+  _drawBeamFx() {
+    const g = this.add.graphics().setDepth(8);
+    g.lineStyle(5, 0xffff66, 0.9);
+    g.beginPath(); g.moveTo(KB_X + KB_W/2, KB_Y); g.lineTo(W + 20, KB_Y); g.strokePath();
+    this.tweens.add({ targets: g, alpha: 0, duration: 300, onComplete: () => g.destroy() });
+  }
+
+  /* ── Oni ────────────────────────────────── */
   _spawnOni() {
     this.spawned++;
-    const sy = Phaser.Math.Between(48, BATTLE_H - 48);
+    const sy     = Phaser.Math.Between(48, BATTLE_H - 48);
+    const named  = this.wave >= 2 && this.spawned % 4 === 0 && Math.random() < (this.wave - 1) * 0.2;
+    const hp     = named ? NAMED_HP : ONI_HP_MAX;
+    const color  = named ? 0x661199 : 0xaa1a1a;
+    const stroke = named ? 0xcc88ff : 0xff6644;
+    const spd    = named ? NAMED_SPD : ONI_SPEED;
+    const dmg    = named ? NAMED_DMG : ONI_DMG;
+    const bw     = named ? 52 : ONI_BAR_W;
+    const hSz    = named ? 64 : ONI_H_SZ;
+    const name   = named ? NAMED_LIST[Phaser.Math.Between(0, 3)] : '鬼';
 
-    const body = this.add.rectangle(W + 22, sy, ONI_W, ONI_H_SZ, 0xaa1a1a).setDepth(3);
-    body.setStrokeStyle(2, 0xff6644);
+    const body   = this.add.rectangle(W + 22, sy, named ? 48 : ONI_W, hSz, color).setDepth(3);
+    body.setStrokeStyle(2, stroke);
+    const lbl    = this.add.text(W + 22, sy, name, { fontSize: named ? '13px' : '20px', color: named ? '#ddaaff' : '#ffbbbb', fontFamily:'serif' }).setOrigin(0.5).setDepth(4);
+    const barY   = sy - hSz/2 - 6;
+    const hpBg   = this.add.rectangle(W + 22 - bw/2, barY, bw, ONI_BAR_H, 0x330000).setOrigin(0, 0.5).setDepth(4);
+    const hpFill = this.add.rectangle(W + 22 - bw/2, barY, bw, ONI_BAR_H, named ? 0xaa44ff : 0xff2222).setOrigin(0, 0.5).setDepth(4);
 
-    const lbl = this.add.text(W + 22, sy, '鬼', {
-      fontSize: '20px', color: '#ffbbbb', fontFamily: 'serif'
-    }).setOrigin(0.5).setDepth(4);
-
-    const hpBg = this.add.rectangle(
-      W + 22 - ONI_BAR_W / 2, sy - ONI_H_SZ / 2 - 6,
-      ONI_BAR_W, ONI_BAR_H, 0x330000
-    ).setOrigin(0, 0.5).setDepth(4);
-
-    const hpFill = this.add.rectangle(
-      W + 22 - ONI_BAR_W / 2, sy - ONI_H_SZ / 2 - 6,
-      ONI_BAR_W, ONI_BAR_H, 0xff2222
-    ).setOrigin(0, 0.5).setDepth(4);
-
-    body.hp       = ONI_HP_MAX;
-    body.maxHp    = ONI_HP_MAX;
+    body.hp = body.maxHp = hp;
     body.atkTimer = 0;
-    body.lbl      = lbl;
-    body.hpBg     = hpBg;
-    body.hpFill   = hpFill;
-
+    body.lbl = lbl; body.hpBg = hpBg; body.hpFill = hpFill;
+    body.spd = spd; body.dmg = dmg; body.bw = bw; body.hSz = hSz;
+    body.exp = named ? EXP_NAMED : EXP_GRUNT;
     this.onis.add(body);
   }
 
   _syncOniUI(oni) {
+    const barY = oni.y - oni.hSz/2 - 6;
     oni.lbl.setPosition(oni.x, oni.y);
-    oni.hpBg.setPosition(oni.x - ONI_BAR_W / 2, oni.y - ONI_H_SZ / 2 - 6);
-    oni.hpFill.setPosition(oni.x - ONI_BAR_W / 2, oni.y - ONI_H_SZ / 2 - 6);
+    oni.hpBg.setPosition(oni.x - oni.bw/2, barY);
+    oni.hpFill.setPosition(oni.x - oni.bw/2, barY);
   }
 
   _removeOni(oni) {
-    oni.lbl?.destroy();
-    oni.hpBg?.destroy();
-    oni.hpFill?.destroy();
-    oni.destroy();
+    oni.lbl?.destroy(); oni.hpBg?.destroy(); oni.hpFill?.destroy(); oni.destroy();
   }
 
   _oniDmg(oni, dmg) {
     oni.hp -= dmg;
     const r = Phaser.Math.Clamp(oni.hp / oni.maxHp, 0, 1);
-    oni.hpFill.setDisplaySize(ONI_BAR_W * r, ONI_BAR_H);
+    oni.hpFill.setDisplaySize(oni.bw * r, ONI_BAR_H);
     if (oni.hp <= 0) {
       this.defeated++;
+      this.totalExp += oni.exp;
       this._removeOni(oni);
     }
+  }
+
+  _showDmgNum(x, y, dmg, color) {
+    const t = this.add.text(x, y - 10, String(dmg), {
+      fontSize:'17px', color: color || '#ffffff',
+      stroke:'#000000', strokeThickness:3, fontFamily:'Arial', fontStyle:'bold'
+    }).setOrigin(0.5).setDepth(11);
+    this.tweens.add({ targets: t, y: y - 52, alpha: 0, duration: 580, ease:'Power1', onComplete: () => t.destroy() });
   }
 
   _kbDmg(dmg) {
     if (this.dead) return;
     this.kbHP = Math.max(0, this.kbHP - dmg);
-    const r = this.kbHP / KB_HP_MAX;
+    const r = this.kbHP / this.kbHPMax;
     this.kbHpBar.setDisplaySize(54 * r, 9);
     this.kbHpBar.setFillStyle(r > 0.5 ? 0x22dd55 : r > 0.25 ? 0xddcc22 : 0xdd2222);
     this.kbBody.setFillStyle(0xff3333);
-    this.time.delayedCall(130, () => {
-      if (this.kbBody?.active) this.kbBody.setFillStyle(0x2255bb);
-    });
+    this.time.delayedCall(130, () => { if (this.kbBody?.active) this.kbBody.setFillStyle(0x2255bb); });
     if (this.kbHP <= 0) this._gameOver();
   }
 
@@ -309,86 +738,94 @@ class MainScene extends Phaser.Scene {
     if (!list.length) return;
     const target = list.reduce((a, b) => a.x < b.x ? a : b);
     if (target.x - KB_X > BUL_RANGE) return;
-
-    const dx  = target.x - KB_X;
-    const dy  = target.y - KB_Y;
+    const dx = target.x - KB_X, dy = target.y - KB_Y;
     const len = Math.hypot(dx, dy) || 1;
-
-    const b = this.add.circle(KB_X + KB_W / 2 + 4, KB_Y, 8, 0x44bbff).setDepth(3);
-    b.vx = BUL_SPD * dx / len;
-    b.vy = BUL_SPD * dy / len;
+    const b = this.add.circle(KB_X + KB_W/2 + 4, KB_Y, 8, 0x44bbff).setDepth(3);
+    b.vx = BUL_SPD * dx / len; b.vy = BUL_SPD * dy / len; b.dmg = BUL_DMG;
     this.bullets.add(b);
   }
 
-  _slash() {
-    const list = this.onis.getChildren().filter(o => o.active);
-    if (!list.length) return;
-    const target = list.reduce((a, b) => a.x < b.x ? a : b);
-
-    this.slashFx.setPosition(target.x, target.y).setAlpha(1).setScale(1);
-    this.tweens.add({
-      targets: this.slashFx,
-      alpha: 0, scaleX: 2.2, scaleY: 2.2,
-      duration: 380, ease: 'Power2'
-    });
-    this._oniDmg(target, SLASH_DMG);
-  }
-
+  /* ── Wave flow ──────────────────────────── */
   _waveClear() {
     this.waveDone = true;
-    this._showPanel('WAVE CLEAR!', '#ffff44', `WAVE ${this.wave} 撃退成功！`);
-    this.time.delayedCall(2400, () => {
-      this._hidePanel();
-      this._nextWave();
-    });
+    if (this.unlockedSlots < 9) { this.unlockedSlots++; this._updateGrid(); }
+    this._showOv('WAVE CLEAR!', '#ffff44', `WAVE ${this.wave} 撃退成功！`);
+    this.time.delayedCall(1800, () => { this._hideOv(); this._openResult(); });
   }
 
   _nextWave() {
     this.wave++;
-    this.spawned    = 0;
-    this.defeated   = 0;
-    this.spawnTimer = 0;
-    this.waveDone   = false;
-    this.waveText.setText(`WAVE ${this.wave}`);
+    this.spawned = this.defeated = this.spawnTimer = 0;
+    this.waveDone = false;
+    this._updateGrid();
   }
 
   _gameOver() {
     this.dead = true;
-    this._showPanel('GAME OVER', '#ff4444', 'タップしてリスタート');
+    this._showOv('GAME OVER', '#ff4444', 'タップしてリスタート');
   }
 
-  _showPanel(title, color, sub) {
-    this.panelBg.setAlpha(0.55);
-    this.panelTitle.setText(title).setStyle({ color }).setAlpha(1);
-    this.panelSub.setText(sub).setAlpha(1);
+  _showOv(title, color, sub) {
+    this.ovBg.setAlpha(0.55);
+    this.ovTitle.setText(title).setStyle({ color, fontSize:'46px', fontFamily:'serif', fontStyle:'bold', stroke:'#000000', strokeThickness:8 }).setAlpha(1);
+    this.ovSub.setText(sub).setAlpha(1);
   }
 
-  _hidePanel() {
-    this.panelBg.setAlpha(0);
-    this.panelTitle.setAlpha(0);
-    this.panelSub.setAlpha(0);
+  _hideOv() {
+    this.ovBg.setAlpha(0); this.ovTitle.setAlpha(0); this.ovSub.setAlpha(0);
   }
 
-  _updateUI() {
-    const remain = this.onis.countActive(true);
-    this.countText.setText(
-      `討伐: ${this.defeated} / ${ONI_PER_WAVE}  │  残敵: ${remain}  │  未出現: ${ONI_PER_WAVE - this.spawned}`
-    );
-    this.kbHpText.setText(`HP: ${this.kbHP} / ${KB_HP_MAX}`);
+  /* ── UI updates ─────────────────────────── */
+  _updateHdrUI() {
+    this.kbHpText.setText(`HP: ${this.kbHP}/${this.kbHPMax}`);
+    this.expText.setText(`EXP: ${this.totalExp}`);
+    this.waveText.setText(`WAVE ${this.wave}`);
+  }
+
+  _updateGrid() {
+    for (let i = 0; i < 9; i++) {
+      const locked = i >= this.unlockedSlots;
+      const c      = this.slotCharms[i];
+      const bg     = this.cellBgs[i];
+      const txt    = this.cellTxt[i];
+      const fill   = this.cellFill[i];
+
+      if (locked) {
+        bg.setFillStyle(0x050505).setStrokeStyle(1, 0x1a1a1a);
+        txt.setText('施錠').setStyle({ color:'#2a2a2a', fontSize:'10px', align:'center' });
+        fill.setDisplaySize(0, CELL_H - 4);
+      } else if (!c) {
+        bg.setFillStyle(0x080812).setStrokeStyle(1, 0x334433);
+        txt.setText('＋\n空き').setStyle({ color:'#447744', fontSize:'12px', align:'center' });
+        fill.setDisplaySize(0, CELL_H - 4);
+      } else {
+        const ready = this.charmTimers[i] >= c.chargeMs;
+        bg.setFillStyle(0x080f1a).setStrokeStyle(2, ready ? 0x44ffaa : 0x336688);
+        txt.setText(`${c.name}\n${ready ? '【使用可】' : '充填中'}`).setStyle({ color: ready ? '#88ffcc' : '#667788', fontSize:'11px', align:'center' });
+        const r = Math.min(1, this.charmTimers[i] / c.chargeMs);
+        fill.setDisplaySize((CELL_W - 4) * r, CELL_H - 4);
+      }
+    }
+  }
+
+  _updateCell(idx) {
+    const c     = this.slotCharms[idx];
+    if (!c) return;
+    const ready = this.charmTimers[idx] >= c.chargeMs;
+    const r     = Math.min(1, this.charmTimers[idx] / c.chargeMs);
+    this.cellFill[idx].setDisplaySize((CELL_W - 4) * r, CELL_H - 4);
+    this.cellBgs[idx].setStrokeStyle(2, ready ? 0x44ffaa : 0x336688);
+    this.cellTxt[idx].setText(`${c.name}\n${ready ? '【使用可】' : '充填中'}`).setStyle({ color: ready ? '#88ffcc' : '#667788', fontSize:'11px', align:'center' });
   }
 }
 
-/* ── Phaser config ──────────────────────────── */
+/* ── Phaser config ───────────────────────── */
 new Phaser.Game({
   type: Phaser.AUTO,
-  width: W,
-  height: H,
+  width: W, height: H,
   backgroundColor: '#000000',
   scene: [MainScene],
-  scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH
-  }
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }
 });
 </script>
 </body>
