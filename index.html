@@ -28,27 +28,29 @@ const BATTLE_H = 330;
 const UI_Y0    = BATTLE_H;
 const UI_H     = H - BATTLE_H; // 514
 
-// UI sub-regions
-const HDR_H      = 42;
-const GRID_TOP   = UI_Y0 + HDR_H;         // 372
-const CELL_W     = 120;
-const CELL_H     = 70;
-const GRID_COLS  = 3;
-const GRID_ROWS  = 3;
-const GRID_X0    = (W - CELL_W * GRID_COLS) / 2; // 15
-const GRID_BOT   = GRID_TOP + CELL_H * GRID_ROWS; // 582
-const SLASH_Y    = GRID_BOT + 6;          // 588
-const SLASH_H    = 76;
-const DESC_Y     = SLASH_Y + SLASH_H + 6; // 670
+const HDR_H     = 42;
+const GRID_TOP  = UI_Y0 + HDR_H;          // 372
+const CELL_W    = 120;
+const CELL_H    = 70;
+const GRID_COLS = 3;
+const GRID_ROWS = 3;
+const GRID_X0   = (W - CELL_W * GRID_COLS) / 2; // 15
+const GRID_BOT  = GRID_TOP + CELL_H * GRID_ROWS; // 582
+
+const SLASH_Y   = GRID_BOT + 6;   // 588
+const SLASH_H   = 86;              // bottom = 674
+const SUPER_Y   = SLASH_Y + SLASH_H + 6; // 680  ← 大技ボタン中心
+const SUPER_H   = 52;
+const DESC_Y    = SUPER_Y + SUPER_H/2 + 8; // 736
 
 /* ── Kibitsu ────────────────────────────────── */
-const KB_X      = 72;
-const KB_Y      = BATTLE_H / 2;
-const KB_W      = 42;
-const KB_H_SZ   = 64;
+const KB_X    = 72;
+const KB_Y    = BATTLE_H / 2;
+const KB_W    = 42;
+const KB_H_SZ = 64;
 
-/* ── Oni (grunt) ────────────────────────────── */
-const ONI_HP_MAX   = 128;
+/* ── Oni ────────────────────────────────────── */
+const ONI_HP_MAX   = 160;   // was 128 — 20 base slashes
 const ONI_SPEED    = 55;
 const ONI_DMG      = 15;
 const ONI_ATK_MS   = 2000;
@@ -60,11 +62,11 @@ const ONI_H_SZ     = 54;
 const ONI_BAR_W    = 38;
 const ONI_BAR_H    = 5;
 
-/* ── Named oni (wave 2+) ────────────────────── */
-const NAMED_HP    = 320;
-const NAMED_SPD   = 35;
-const NAMED_DMG   = 25;
-const NAMED_LIST  = ['茨木鬼', '酒呑童子', '大嶽丸', '星熊童子'];
+/* ── Named oni ──────────────────────────────── */
+const NAMED_HP   = 480;   // was 320
+const NAMED_SPD  = 35;
+const NAMED_DMG  = 25;
+const NAMED_LIST = ['茨木鬼', '酒呑童子', '大嶽丸', '星熊童子'];
 
 /* ── Bullet ─────────────────────────────────── */
 const BUL_DMG   = 20;
@@ -72,15 +74,14 @@ const BUL_MS    = 1300;
 const BUL_SPD   = 300;
 const BUL_RANGE = 320;
 
-/* ── Slash ──────────────────────────────────── */
-// 16 taps at base dmg kills grunt: 128/8=16
+/* ── Slash / Gauge ──────────────────────────── */
 const SLASH_BASE     = 8;
 const COMBO_STEP     = 0.1;
 const COMBO_MAX      = 1.3;
 const COMBO_RESET_MS = 1500;
 const GAUGE_MAX      = 100;
-const GAUGE_PER_HIT  = 6;   // slow fill
-const SUPER_DMG      = 250;
+const GAUGE_PER_HIT  = 5;   // 20 hits to fill
+const SUPER_DMG      = 120; // was 250 — balanced down
 
 /* ── EXP ────────────────────────────────────── */
 const EXP_GRUNT = 10;
@@ -88,10 +89,10 @@ const EXP_NAMED = 30;
 
 /* ── Charms ─────────────────────────────────── */
 const CHARM_DEFS = [
-  { id:'water',   name:'水弾符', desc:'最も近い敵に水弾を放つ',       dmg:35,  chargeMs:2500, color:0x44aaff },
-  { id:'pierce',  name:'貫通符', desc:'全敵を貫くビームを放つ',        dmg:60,  chargeMs:4000, color:0xffee44 },
-  { id:'scatter', name:'拡散符', desc:'複数の敵に拡散弾を放つ',       dmg:28,  chargeMs:2800, color:0xff88aa },
-  { id:'rapid',   name:'連射符', desc:'素早く5連射する（威力低め）',  dmg:12,  chargeMs:900,  color:0x88ffaa },
+  { id:'water',   name:'水弾符', desc:'最も近い敵に水弾を放つ',      dmg:35, chargeMs:2500, color:0x44aaff },
+  { id:'pierce',  name:'貫通符', desc:'全敵を貫くビームを放つ',       dmg:60, chargeMs:4000, color:0xffee44 },
+  { id:'scatter', name:'拡散符', desc:'複数の敵に拡散弾を放つ',      dmg:28, chargeMs:2800, color:0xff88aa },
+  { id:'rapid',   name:'連射符', desc:'素早く5連射する（威力低め）', dmg:12, chargeMs:900,  color:0x88ffaa },
 ];
 
 /* ══════════════════════════════════════════════
@@ -101,7 +102,6 @@ class MainScene extends Phaser.Scene {
   constructor() { super({ key: 'MainScene' }); }
 
   create() {
-    /* ── state ── */
     this.kbHP         = 300;
     this.kbHPMax      = 300;
     this.wave         = 1;
@@ -111,36 +111,37 @@ class MainScene extends Phaser.Scene {
     this.bulTimer     = 0;
     this.dead         = false;
     this.waveDone     = false;
-    this.phase        = 'battle'; // 'battle' | 'result'
+    this.phase        = 'battle';
     this.totalExp     = 0;
 
     this.slashDmg     = SLASH_BASE;
     this.combo        = 1.0;
     this.comboTimer   = 0;
     this.gauge        = 0;
+    this.gaugeReady   = false;
 
     this.unlockedSlots = 0;
     this.slotCharms    = new Array(9).fill(null);
     this.charmTimers   = new Array(9).fill(0);
-    this.ownedCharms   = CHARM_DEFS.map(c => Object.assign({}, c)); // copies
+    this.ownedCharms   = CHARM_DEFS.map(c => Object.assign({}, c));
 
     this._charmPickVisible = false;
     this._upgVisible       = false;
 
-    /* ── build ── */
     this._buildBG();
     this._buildKibitsu();
     this._buildHdrUI();
     this._buildGridUI();
     this._buildSlashArea();
+    this._buildSuperBtn();
     this._buildDescArea();
     this._buildBattleOverlay();
     this._buildResultScreen();
     this._buildCharmPickScreen();
     this._buildUpgradeScreen();
 
-    this.onis    = this.add.group();
-    this.bullets = this.add.group();
+    this.onis     = this.add.group();
+    this.bullets  = this.add.group();
     this.slashGfx = this.add.graphics().setDepth(10);
 
     this.input.on('pointerdown', ptr => this._onTap(ptr));
@@ -162,13 +163,16 @@ class MainScene extends Phaser.Scene {
       }
     }
 
-    // Charm charge
+    // Charm charge + auto-fire
     for (let i = 0; i < 9; i++) {
-      if (!this.slotCharms[i]) continue;
       const c = this.slotCharms[i];
+      if (!c) continue;
       if (this.charmTimers[i] < c.chargeMs) {
-        this.charmTimers[i] += delta;
+        this.charmTimers[i] = Math.min(c.chargeMs, this.charmTimers[i] + delta);
         this._updateCell(i);
+      } else {
+        // Auto-fire when fully charged
+        this._useCharm(i);
       }
     }
 
@@ -216,9 +220,8 @@ class MainScene extends Phaser.Scene {
       for (const oni of oniList) {
         if (!oni.active) continue;
         if (Phaser.Math.Distance.Between(b.x, b.y, oni.x, oni.y) < 26) {
-          const d = b.dmg || BUL_DMG;
           b.destroy();
-          this._oniDmg(oni, d);
+          this._oniDmg(oni, b.dmg || BUL_DMG);
           break;
         }
       }
@@ -239,7 +242,6 @@ class MainScene extends Phaser.Scene {
     this.add.rectangle(W/2, 6, W, 12, 0x223344).setDepth(0);
     this.add.rectangle(W/2, UI_Y0 + UI_H/2, W, UI_H, 0x0c100c).setDepth(0);
     this.add.rectangle(W/2, UI_Y0 + 1, W, 3, 0x44664a).setDepth(0);
-    // Gate
     this.add.rectangle(20, BATTLE_H/2, 40, BATTLE_H, 0x6e4e12).setDepth(1);
     this.add.rectangle(20, BATTLE_H/2, 40, BATTLE_H).setStrokeStyle(2, 0xb89a30).setDepth(2);
     this.add.text(20, 20, '門', { fontSize:'12px', color:'#ccaa44', fontFamily:'serif' }).setOrigin(0.5).setDepth(3);
@@ -258,7 +260,7 @@ class MainScene extends Phaser.Scene {
   _buildHdrUI() {
     this.kbHpText = this.add.text(14, UI_Y0 + 6, '', { fontSize:'13px', color:'#88aaff', fontFamily:'Arial' }).setDepth(5);
     this.waveText = this.add.text(W/2, UI_Y0 + 14, 'WAVE 1', { fontSize:'21px', color:'#ddcc44', fontFamily:'serif', fontStyle:'bold' }).setOrigin(0.5).setDepth(5);
-    this.expText  = this.add.text(W - 14, UI_Y0 + 6, '', { fontSize:'13px', color:'#aaee88', fontFamily:'Arial' }).setOrigin(1,0).setDepth(5);
+    this.expText  = this.add.text(W - 14, UI_Y0 + 6, '', { fontSize:'13px', color:'#aaee88', fontFamily:'Arial' }).setOrigin(1, 0).setDepth(5);
   }
 
   /* ── Build 9-cell grid ──────────────────── */
@@ -271,7 +273,7 @@ class MainScene extends Phaser.Scene {
       const row = Math.floor(i / GRID_COLS);
       const cx  = GRID_X0 + col * CELL_W + CELL_W / 2;
       const cy  = GRID_TOP + row * CELL_H + CELL_H / 2;
-      const bg  = this.add.rectangle(cx, cy, CELL_W - 4, CELL_H - 4, 0x080812).setStrokeStyle(1, 0x334433).setDepth(5);
+      const bg   = this.add.rectangle(cx, cy, CELL_W - 4, CELL_H - 4, 0x080812).setStrokeStyle(1, 0x334433).setDepth(5);
       const fill = this.add.rectangle(cx - (CELL_W-4)/2, cy, 0, CELL_H - 4, 0x1a3322).setOrigin(0, 0.5).setDepth(5);
       const txt  = this.add.text(cx, cy, '', { fontSize:'11px', color:'#888888', fontFamily:'serif', align:'center' }).setOrigin(0.5).setDepth(6);
       this.cellBgs.push(bg);
@@ -282,31 +284,51 @@ class MainScene extends Phaser.Scene {
 
   /* ── Build slash area ───────────────────── */
   _buildSlashArea() {
+    // Background panel
     this.slashAreaBg = this.add.rectangle(W/2, SLASH_Y + SLASH_H/2, W - 20, SLASH_H, 0x141422)
       .setStrokeStyle(2, 0x4444aa).setDepth(5);
 
-    this.slashLbl = this.add.text(W/2, SLASH_Y + SLASH_H/2 - 10, '⚔  斬撃', {
+    // Slash button label + combo
+    this.slashLbl  = this.add.text(W/2, SLASH_Y + 18, '⚔  斬撃', {
       fontSize:'20px', color:'#ffdd88', fontFamily:'serif', fontStyle:'bold'
     }).setOrigin(0.5).setDepth(6);
-
-    this.comboLbl = this.add.text(W/2, SLASH_Y + SLASH_H/2 + 12, '', {
+    this.comboLbl  = this.add.text(W/2, SLASH_Y + 38, '', {
       fontSize:'12px', color:'#ffaa44', fontFamily:'Arial'
     }).setOrigin(0.5).setDepth(6);
 
-    // Gauge bar
-    const gy = SLASH_Y + SLASH_H - 9;
-    this.add.rectangle(W/2, gy, W - 40, 8, 0x111122).setDepth(6);
-    this.gaugeBar = this.add.rectangle(20, gy, 0, 8, 0xaa44ff).setOrigin(0, 0.5).setDepth(7);
+    // Gauge label
+    this.add.text(20, SLASH_Y + SLASH_H - 28, '大技ゲージ', {
+      fontSize:'11px', color:'#8877bb', fontFamily:'Arial'
+    }).setDepth(6);
+    this.gaugePctTxt = this.add.text(W - 20, SLASH_Y + SLASH_H - 28, '0%', {
+      fontSize:'11px', color:'#8877bb', fontFamily:'Arial'
+    }).setOrigin(1, 0).setDepth(6);
+
+    // Gauge bar track
+    const gy = SLASH_Y + SLASH_H - 10;
+    this.add.rectangle(W/2, gy, W - 40, 14, 0x111122).setDepth(6);
+    this.gaugeBar = this.add.rectangle(20, gy, 0, 14, 0x6633cc).setOrigin(0, 0.5).setDepth(7);
+  }
+
+  /* ── Build super button ─────────────────── */
+  _buildSuperBtn() {
+    // Hidden until gauge full
+    this.superBtnBg = this.add.rectangle(W/2, SUPER_Y, W - 40, SUPER_H, 0x220011)
+      .setStrokeStyle(3, 0xff4488).setAlpha(0).setDepth(8);
+    this.superBtnTxt = this.add.text(W/2, SUPER_Y, '★  大技発動  ★', {
+      fontSize:'20px', color:'#ff88cc', fontFamily:'serif', fontStyle:'bold',
+      stroke:'#000000', strokeThickness:4
+    }).setOrigin(0.5).setAlpha(0).setDepth(9);
   }
 
   /* ── Build desc area ────────────────────── */
   _buildDescArea() {
-    this.descText = this.add.text(W/2, DESC_Y + 12, '呪符枠をタップして配置', {
-      fontSize:'12px', color:'#778866', fontFamily:'serif', align:'center'
+    this.descText = this.add.text(W/2, DESC_Y, '呪符枠をタップして配置', {
+      fontSize:'12px', color:'#556655', fontFamily:'serif', align:'center'
     }).setOrigin(0.5).setDepth(5);
   }
 
-  /* ── Battle overlay (wave clear / game over) */
+  /* ── Battle overlay ─────────────────────── */
   _buildBattleOverlay() {
     this.ovBg    = this.add.rectangle(W/2, BATTLE_H/2, W, BATTLE_H, 0x000000).setAlpha(0).setDepth(12);
     this.ovTitle = this.add.text(W/2, BATTLE_H/2 - 30, '', {
@@ -317,20 +339,15 @@ class MainScene extends Phaser.Scene {
     }).setOrigin(0.5).setAlpha(0).setDepth(13);
   }
 
-  /* ── Result screen (replaces UI area) ───── */
+  /* ── Result screen ──────────────────────── */
   _buildResultScreen() {
     const base = UI_Y0;
-    this.resBg    = this.add.rectangle(W/2, base + UI_H/2, W, UI_H, 0x050a05).setAlpha(0).setDepth(14);
-    this.resTitle = this.add.text(W/2, base + 22, '', {
-      fontSize:'18px', color:'#ddcc44', fontFamily:'serif', fontStyle:'bold'
-    }).setOrigin(0.5).setAlpha(0).setDepth(15);
-    this.resExpTxt = this.add.text(W/2, base + 50, '', {
-      fontSize:'13px', color:'#aaeebb', fontFamily:'Arial'
-    }).setOrigin(0.5).setAlpha(0).setDepth(15);
-
+    this.resBg     = this.add.rectangle(W/2, base + UI_H/2, W, UI_H, 0x050a05).setAlpha(0).setDepth(14);
+    this.resTitle  = this.add.text(W/2, base + 22, '', { fontSize:'18px', color:'#ddcc44', fontFamily:'serif', fontStyle:'bold' }).setOrigin(0.5).setAlpha(0).setDepth(15);
+    this.resExpTxt = this.add.text(W/2, base + 50, '', { fontSize:'13px', color:'#aaeebb', fontFamily:'Arial' }).setOrigin(0.5).setAlpha(0).setDepth(15);
     const labels = ['呪符を選ぶ', 'キビツを強化する', '次のWAVEへ'];
     this.resBtns = labels.map((lbl, i) => {
-      const by = base + 90 + i * 80;
+      const by  = base + 90 + i * 80;
       const bg  = this.add.rectangle(W/2, by, W - 40, 64, 0x0f1f0f).setStrokeStyle(2, 0x44aa44).setAlpha(0).setDepth(15);
       const txt = this.add.text(W/2, by, lbl, { fontSize:'18px', color:'#cceecc', fontFamily:'serif' }).setOrigin(0.5).setAlpha(0).setDepth(16);
       return { bg, txt, i };
@@ -345,9 +362,9 @@ class MainScene extends Phaser.Scene {
     this.cpBtns  = [];
     for (let i = 0; i < 4; i++) {
       const by = base + 62 + i * 96;
-      const bg  = this.add.rectangle(W/2, by, W - 36, 84, 0x0a1520).setStrokeStyle(2, 0x3366aa).setAlpha(0).setDepth(18);
-      const nm  = this.add.text(W/2, by - 18, '', { fontSize:'16px', color:'#88ccff', fontFamily:'serif', fontStyle:'bold' }).setOrigin(0.5).setAlpha(0).setDepth(19);
-      const ds  = this.add.text(W/2, by + 10, '', { fontSize:'12px', color:'#aabbcc', fontFamily:'Arial', align:'center' }).setOrigin(0.5).setAlpha(0).setDepth(19);
+      const bg = this.add.rectangle(W/2, by, W - 36, 84, 0x0a1520).setStrokeStyle(2, 0x3366aa).setAlpha(0).setDepth(18);
+      const nm = this.add.text(W/2, by - 18, '', { fontSize:'16px', color:'#88ccff', fontFamily:'serif', fontStyle:'bold' }).setOrigin(0.5).setAlpha(0).setDepth(19);
+      const ds = this.add.text(W/2, by + 10, '', { fontSize:'12px', color:'#aabbcc', fontFamily:'Arial', align:'center' }).setOrigin(0.5).setAlpha(0).setDepth(19);
       this.cpBtns.push({ bg, nm, ds, charm: null });
     }
     this.cpCancel = this.add.text(W/2, base + UI_H - 24, '戻る', { fontSize:'14px', color:'#556655', fontFamily:'Arial' }).setOrigin(0.5).setAlpha(0).setDepth(19);
@@ -359,7 +376,6 @@ class MainScene extends Phaser.Scene {
     this.upgBg     = this.add.rectangle(W/2, base + UI_H/2, W, UI_H, 0x050308).setAlpha(0).setDepth(17);
     this.upgTitle  = this.add.text(W/2, base + 18, 'キビツを強化する', { fontSize:'17px', color:'#ffcc88', fontFamily:'serif', fontStyle:'bold' }).setOrigin(0.5).setAlpha(0).setDepth(18);
     this.upgExpTxt = this.add.text(W/2, base + 48, '', { fontSize:'13px', color:'#aaeeaa', fontFamily:'Arial' }).setOrigin(0.5).setAlpha(0).setDepth(18);
-
     const items = [
       { label:'HP強化',   key:'hp',    cost:20, desc:'+30 最大HP' },
       { label:'斬撃強化', key:'slash',  cost:25, desc:'基本威力 +2' },
@@ -379,20 +395,23 @@ class MainScene extends Phaser.Scene {
   _onTap(ptr) {
     const { x, y } = ptr;
     if (this.dead) { this.scene.restart(); return; }
+    if (this._upgVisible)        { this._handleUpgTap(x, y);    return; }
+    if (this._charmPickVisible)  { this._handleCpTap(x, y);     return; }
+    if (this.phase === 'result') { this._handleResultTap(x, y); return; }
 
-    if (this._upgVisible)       { this._handleUpgTap(x, y); return; }
-    if (this._charmPickVisible) { this._handleCpTap(x, y);  return; }
-    if (this.phase === 'result'){ this._handleResultTap(x, y); return; }
-
-    // Battle area — no tap action there
     if (y < BATTLE_H) return;
+
+    // Super button
+    if (this.gaugeReady && Math.abs(y - SUPER_Y) < SUPER_H / 2) {
+      this._superAtk(); return;
+    }
 
     // Slash area
     if (y >= SLASH_Y && y < SLASH_Y + SLASH_H) {
       this._doSlash(); return;
     }
 
-    // Grid
+    // Grid — tap only for placement
     if (y >= GRID_TOP && y < GRID_BOT) {
       const col = Math.floor((x - GRID_X0) / CELL_W);
       const row = Math.floor((y - GRID_TOP) / CELL_H);
@@ -405,44 +424,29 @@ class MainScene extends Phaser.Scene {
   _onCellTap(idx) {
     if (this.waveDone) return;
     if (idx >= this.unlockedSlots) return;
-    const charm = this.slotCharms[idx];
-    if (!charm) {
+    if (!this.slotCharms[idx]) {
       this._openCharmPick('place', idx);
-    } else if (this.charmTimers[idx] >= charm.chargeMs) {
-      this._useCharm(idx);
     }
+    // No manual use — auto-fire handles it
   }
 
   /* ── Charm pick ─────────────────────────── */
   _openCharmPick(mode, slotIdx) {
-    this._cpMode     = mode;
-    this._cpSlot     = slotIdx;
+    this._cpMode = mode; this._cpSlot = slotIdx;
     this._charmPickVisible = true;
-
-    let choices;
-    if (mode === 'place') {
-      choices = this.ownedCharms.slice(0, 4);
-      this.cpTitle.setText('呪符を配置する');
-    } else {
-      choices = [...CHARM_DEFS].sort(() => Math.random() - 0.5).slice(0, 3);
-      this.cpTitle.setText('呪符を1つ選ぶ（3択）');
-    }
-
-    this.cpBg.setAlpha(0.97);
-    this.cpTitle.setAlpha(1);
-    this.cpCancel.setAlpha(1);
-
+    const choices = mode === 'place'
+      ? this.ownedCharms.slice(0, 4)
+      : [...CHARM_DEFS].sort(() => Math.random() - 0.5).slice(0, 3);
+    this.cpTitle.setText(mode === 'place' ? '呪符を配置する' : '呪符を1つ選ぶ（3択）');
+    this.cpBg.setAlpha(0.97); this.cpTitle.setAlpha(1); this.cpCancel.setAlpha(1);
     for (let i = 0; i < 4; i++) {
-      const btn = this.cpBtns[i];
-      const c   = choices[i];
+      const btn = this.cpBtns[i], c = choices[i];
       if (c) {
-        btn.charm = c;
-        btn.bg.setAlpha(1);
+        btn.charm = c; btn.bg.setAlpha(1);
         btn.nm.setText(c.name).setAlpha(1);
         btn.ds.setText(`${c.desc}  [${(c.chargeMs/1000).toFixed(1)}s]`).setAlpha(1);
       } else {
-        btn.charm = null;
-        btn.bg.setAlpha(0); btn.nm.setAlpha(0); btn.ds.setAlpha(0);
+        btn.charm = null; btn.bg.setAlpha(0); btn.nm.setAlpha(0); btn.ds.setAlpha(0);
       }
     }
   }
@@ -459,12 +463,10 @@ class MainScene extends Phaser.Scene {
           this.charmTimers[this._cpSlot] = 0;
           this._updateGrid();
         } else {
-          if (!this.ownedCharms.find(o => o.id === c.id)) {
+          if (!this.ownedCharms.find(o => o.id === c.id))
             this.ownedCharms.push(Object.assign({}, c));
-          }
         }
-        this._closeCp();
-        return;
+        this._closeCp(); return;
       }
     }
   }
@@ -505,9 +507,7 @@ class MainScene extends Phaser.Scene {
   /* ── Upgrade ────────────────────────────── */
   _openUpgScreen() {
     this._upgVisible = true;
-    this.upgBg.setAlpha(0.97);
-    this.upgTitle.setAlpha(1);
-    this.upgCancel.setAlpha(1);
+    this.upgBg.setAlpha(0.97); this.upgTitle.setAlpha(1); this.upgCancel.setAlpha(1);
     this._refreshUpg();
   }
 
@@ -527,27 +527,16 @@ class MainScene extends Phaser.Scene {
       const by = base + 90 + i * 90;
       if (Math.abs(y - by) < 40) {
         const { cost, key } = this.upgBtns[i].item;
-        if (this.totalExp >= cost) {
-          this.totalExp -= cost;
-          this._applyUpg(key);
-          this._refreshUpg();
-        }
+        if (this.totalExp >= cost) { this.totalExp -= cost; this._applyUpg(key); this._refreshUpg(); }
         return;
       }
     }
   }
 
   _applyUpg(key) {
-    if (key === 'hp') {
-      this.kbHPMax += 30;
-      this.kbHP = Math.min(this.kbHP + 30, this.kbHPMax);
-    } else if (key === 'slash') {
-      this.slashDmg += 2;
-    } else if (key === 'cast') {
-      for (const c of this.ownedCharms) {
-        c.chargeMs = Math.max(400, Math.round(c.chargeMs * 0.85));
-      }
-    }
+    if (key === 'hp')    { this.kbHPMax += 30; this.kbHP = Math.min(this.kbHP + 30, this.kbHPMax); }
+    else if (key === 'slash') { this.slashDmg += 2; }
+    else if (key === 'cast')  { for (const c of this.ownedCharms) c.chargeMs = Math.max(400, Math.round(c.chargeMs * 0.85)); }
   }
 
   _closeUpg() {
@@ -561,23 +550,19 @@ class MainScene extends Phaser.Scene {
     const list = this.onis.getChildren().filter(o => o.active);
     if (!list.length) return;
     const target = list.reduce((a, b) => a.x < b.x ? a : b);
+    const dmg    = Math.round(this.slashDmg * this.combo);
 
-    const dmg = Math.round(this.slashDmg * this.combo);
     this._oniDmg(target, dmg);
     this._showDmgNum(target.x, target.y, dmg, '#ffee44');
     this._drawSlashLine(target.x, target.y);
 
-    // Combo ramp
     if (this.combo < COMBO_MAX) {
       this.combo = Math.min(COMBO_MAX, Math.round((this.combo + COMBO_STEP) * 10) / 10);
     }
     this.comboTimer = 0;
 
-    // Gauge
     this.gauge = Math.min(GAUGE_MAX, this.gauge + GAUGE_PER_HIT);
     this._refreshGauge();
-    if (this.gauge >= GAUGE_MAX) this._superAtk();
-
     this._refreshSlashLabel();
   }
 
@@ -599,26 +584,52 @@ class MainScene extends Phaser.Scene {
     });
   }
 
-  _superAtk() {
-    this.gauge = 0;
-    this._refreshGauge();
-    for (const oni of this.onis.getChildren().filter(o => o.active)) {
-      this._oniDmg(oni, SUPER_DMG);
-      this._showDmgNum(oni.x, oni.y - 20, SUPER_DMG, '#ff44ff');
-    }
-    this.ovBg.setAlpha(0.25);
-    this.time.delayedCall(200, () => this.ovBg.setAlpha(0));
-  }
-
   _refreshSlashLabel() {
     this.comboLbl.setText(this.combo > 1.0 ? `COMBO ×${this.combo.toFixed(1)}` : '');
   }
 
   _refreshGauge() {
-    this.gaugeBar.setDisplaySize((W - 40) * (this.gauge / GAUGE_MAX), 8);
+    const pct  = this.gauge / GAUGE_MAX;
+    const barW = (W - 40) * pct;
+
+    // Color: dark purple → purple → gold when near full
+    const color = pct >= 1.0 ? 0xff66aa : pct >= 0.7 ? 0xcc44ff : 0x6633cc;
+    this.gaugeBar.setDisplaySize(barW, 14).setFillStyle(color);
+    this.gaugePctTxt.setText(`${Math.floor(pct * 100)}%`);
+
+    // Super button visibility
+    if (pct >= 1.0 && !this.gaugeReady) {
+      this.gaugeReady = true;
+      this.superBtnBg.setAlpha(1);
+      this.superBtnTxt.setAlpha(1);
+      // Pulse animation
+      this.tweens.add({
+        targets: [this.superBtnBg, this.superBtnTxt],
+        alpha: { from: 1, to: 0.5 },
+        yoyo: true, repeat: -1, duration: 500
+      });
+    } else if (pct < 1.0 && this.gaugeReady) {
+      this.gaugeReady = false;
+      this.tweens.killTweensOf([this.superBtnBg, this.superBtnTxt]);
+      this.superBtnBg.setAlpha(0);
+      this.superBtnTxt.setAlpha(0);
+    }
   }
 
-  /* ── Charm use ──────────────────────────── */
+  /* ── Super attack ───────────────────────── */
+  _superAtk() {
+    this.gauge = 0;
+    this._refreshGauge(); // hides button via gaugeReady logic
+
+    for (const oni of this.onis.getChildren().filter(o => o.active)) {
+      this._oniDmg(oni, SUPER_DMG);
+      this._showDmgNum(oni.x, oni.y - 20, SUPER_DMG, '#ff44ff');
+    }
+    this.ovBg.setAlpha(0.3);
+    this.time.delayedCall(220, () => this.ovBg.setAlpha(0));
+  }
+
+  /* ── Charm auto-fire ────────────────────── */
   _useCharm(idx) {
     const c = this.slotCharms[idx];
     this.charmTimers[idx] = 0;
@@ -775,7 +786,7 @@ class MainScene extends Phaser.Scene {
     this.ovBg.setAlpha(0); this.ovTitle.setAlpha(0); this.ovSub.setAlpha(0);
   }
 
-  /* ── UI updates ─────────────────────────── */
+  /* ── UI ─────────────────────────────────── */
   _updateHdrUI() {
     this.kbHpText.setText(`HP: ${this.kbHP}/${this.kbHPMax}`);
     this.expText.setText(`EXP: ${this.totalExp}`);
@@ -789,7 +800,6 @@ class MainScene extends Phaser.Scene {
       const bg     = this.cellBgs[i];
       const txt    = this.cellTxt[i];
       const fill   = this.cellFill[i];
-
       if (locked) {
         bg.setFillStyle(0x050505).setStrokeStyle(1, 0x1a1a1a);
         txt.setText('施錠').setStyle({ color:'#2a2a2a', fontSize:'10px', align:'center' });
@@ -801,7 +811,7 @@ class MainScene extends Phaser.Scene {
       } else {
         const ready = this.charmTimers[i] >= c.chargeMs;
         bg.setFillStyle(0x080f1a).setStrokeStyle(2, ready ? 0x44ffaa : 0x336688);
-        txt.setText(`${c.name}\n${ready ? '【使用可】' : '充填中'}`).setStyle({ color: ready ? '#88ffcc' : '#667788', fontSize:'11px', align:'center' });
+        txt.setText(`${c.name}\n${ready ? '【発動中】' : '充填中'}`).setStyle({ color: ready ? '#88ffcc' : '#667788', fontSize:'11px', align:'center' });
         const r = Math.min(1, this.charmTimers[i] / c.chargeMs);
         fill.setDisplaySize((CELL_W - 4) * r, CELL_H - 4);
       }
@@ -809,13 +819,13 @@ class MainScene extends Phaser.Scene {
   }
 
   _updateCell(idx) {
-    const c     = this.slotCharms[idx];
+    const c = this.slotCharms[idx];
     if (!c) return;
     const ready = this.charmTimers[idx] >= c.chargeMs;
     const r     = Math.min(1, this.charmTimers[idx] / c.chargeMs);
     this.cellFill[idx].setDisplaySize((CELL_W - 4) * r, CELL_H - 4);
     this.cellBgs[idx].setStrokeStyle(2, ready ? 0x44ffaa : 0x336688);
-    this.cellTxt[idx].setText(`${c.name}\n${ready ? '【使用可】' : '充填中'}`).setStyle({ color: ready ? '#88ffcc' : '#667788', fontSize:'11px', align:'center' });
+    this.cellTxt[idx].setText(`${c.name}\n${ready ? '【発動中】' : '充填中'}`).setStyle({ color: ready ? '#88ffcc' : '#667788', fontSize:'11px', align:'center' });
   }
 }
 
