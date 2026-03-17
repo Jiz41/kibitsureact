@@ -137,8 +137,9 @@ class MainScene extends Phaser.Scene {
     this.bullets = this.add.group();
     this.sfx     = this.add.graphics().setDepth(10);
 
-    // edge pulse for charge indicators
+    // liquid fill animation
     this._edgeAlpha = 1.0;
+    this._waveOff = 0;
     this.tweens.add({ targets: this, _edgeAlpha: 0.25, yoyo: true, repeat: -1, duration: 500, ease: 'Sine.easeInOut' });
 
     this.input.on('pointerdown', p => this._tap(p));
@@ -148,6 +149,7 @@ class MainScene extends Phaser.Scene {
   /* ── update ─────────────────────────────── */
   update(_t, dt) {
     if (this.dead || this.waveDone) return;
+    this._waveOff = Math.sin(this.game.loop.now / 300) * 2.5; // liquid surface wave
 
     // combo decay
     if (this.combo > 1.0) {
@@ -242,19 +244,21 @@ class MainScene extends Phaser.Scene {
     this.expTxt  = this.add.text(W - 14, UI_Y0 + 6, '', { fontSize:'13px', color:'#aaee88', fontFamily:'Arial' }).setOrigin(1, 0).setDepth(5);
   }
 
-  /* ── Grid (bottom-to-top fill) ──────────── */
+  /* ── Grid (liquid fill) ─────────────────── */
   _grid() {
-    this.cBg = []; this.cFill = []; this.cEdge = []; this.cTxt = [];
+    this.cBg = []; this.cGhost = []; this.cFill = []; this.cEdge = []; this.cTxt = [];
     for (let i = 0; i < 9; i++) {
       const col = i % 3, row = Math.floor(i / 3);
       const cx = GRID_X0 + col * CELL_W + CELL_W / 2;
       const cy = GRID_TOP + row * CELL_H + CELL_H / 2;
       const bot = cy + (CELL_H - 4) / 2;
-      const bg   = this.add.rectangle(cx, cy, CELL_W - 4, CELL_H - 4, 0x020306).setStrokeStyle(1, 0x223322).setDepth(5);
-      const fill = this.add.rectangle(cx, bot, CELL_W - 4, 0, 0x2299ff).setOrigin(0.5, 1).setAlpha(0.88).setDepth(5);
-      const edge = this.add.rectangle(cx, bot, CELL_W - 4, 3, 0xffffff).setOrigin(0.5, 1).setAlpha(0).setDepth(6);
-      const txt  = this.add.text(cx, cy, '', { fontSize:'11px', color:'#888', fontFamily:'serif', align:'center' }).setOrigin(0.5).setDepth(7);
-      this.cBg.push(bg); this.cFill.push(fill); this.cEdge.push(edge); this.cTxt.push(txt);
+      // depth order: bg(5) < ghost(5) < fill(6) < edge(7) < txt(8)
+      const bg    = this.add.rectangle(cx, cy, CELL_W - 4, CELL_H - 4, 0x010204).setStrokeStyle(2, 0x1a2a1a).setDepth(5);
+      const ghost = this.add.rectangle(cx, cy, CELL_W - 4, CELL_H - 4, 0x2299ff).setAlpha(0).setDepth(5);
+      const fill  = this.add.rectangle(cx, bot, CELL_W - 4, 0, 0x2299ff).setOrigin(0.5, 1).setAlpha(0).setDepth(6);
+      const edge  = this.add.rectangle(cx, bot, CELL_W - 4, 7, 0xffffff).setOrigin(0.5, 0.5).setAlpha(0).setDepth(7);
+      const txt   = this.add.text(cx, cy, '', { fontSize:'11px', color:'#fff', fontFamily:'serif', align:'center', stroke:'#000', strokeThickness:3 }).setOrigin(0.5).setDepth(8);
+      this.cBg.push(bg); this.cGhost.push(ghost); this.cFill.push(fill); this.cEdge.push(edge); this.cTxt.push(txt);
     }
   }
 
@@ -724,15 +728,16 @@ class MainScene extends Phaser.Scene {
     for (let i = 0; i < 9; i++) {
       const locked = i >= this.unlockedSlots;
       const c = this.slotCharms[i];
-      const bg = this.cBg[i], txt = this.cTxt[i], fill = this.cFill[i], edge = this.cEdge[i];
+      const bg = this.cBg[i], ghost = this.cGhost[i], txt = this.cTxt[i];
+      const fill = this.cFill[i], edge = this.cEdge[i];
       if (locked) {
         bg.setFillStyle(0x050505).setStrokeStyle(1, 0x1a1a1a);
-        txt.setText('施錠').setStyle({ color:'#2a2a2a', fontSize:'10px', align:'center' });
-        fill.setDisplaySize(CELL_W - 4, 0); edge.setAlpha(0);
+        ghost.setAlpha(0); fill.setDisplaySize(CELL_W - 4, 0); edge.setAlpha(0);
+        txt.setText('施錠').setStyle({ color:'#2a2a2a', fontSize:'10px', align:'center', stroke:'#000', strokeThickness:0 });
       } else if (!c) {
-        bg.setFillStyle(0x020306).setStrokeStyle(1, 0x223322);
-        txt.setText('＋\n空き').setStyle({ color:'#447744', fontSize:'12px', align:'center' });
-        fill.setDisplaySize(CELL_W - 4, 0); edge.setAlpha(0);
+        bg.setFillStyle(0x010204).setStrokeStyle(1, 0x1a2a1a);
+        ghost.setAlpha(0); fill.setDisplaySize(CELL_W - 4, 0); edge.setAlpha(0);
+        txt.setText('＋\n空き').setStyle({ color:'#447744', fontSize:'12px', align:'center', stroke:'#000', strokeThickness:2 });
       } else {
         const an = ATTR_NAMES[c.attr] || '－';
         const fillCol = ATTR_FILL[c.attr] || ATTR_FILL.none;
@@ -742,15 +747,17 @@ class MainScene extends Phaser.Scene {
         const col = i % 3, row = Math.floor(i / 3);
         const cx = GRID_X0 + col * CELL_W + CELL_W / 2;
         const bot = GRID_TOP + row * CELL_H + CELL_H / 2 + cellH4 / 2;
-        bg.setFillStyle(0x020306).setStrokeStyle(2, ready ? 0x44ffaa : (r > 0.05 ? fillCol : 0x223322));
-        fill.setDisplaySize(CELL_W - 4, cellH4 * r)
+        ghost.setFillStyle(fillCol).setAlpha(ready ? 0 : 0.11);
+        const fillH = cellH4 * r;
+        bg.setFillStyle(0x010204).setStrokeStyle(2, ready ? 0x44ffaa : (r > 0.05 ? fillCol : 0x1a2a1a));
+        fill.setDisplaySize(CELL_W - 4, fillH)
           .setFillStyle(ready ? 0xffffff : fillCol)
-          .setAlpha(ready ? 1.0 : 0.72 + r * 0.2);
+          .setAlpha(ready ? 1.0 : 0.82 + r * 0.14);
         if (r > 0.02 && !ready) {
-          edge.setPosition(cx, bot - cellH4 * r).setFillStyle(fillCol).setAlpha(0.9);
+          edge.setPosition(cx, bot - fillH).setAlpha(0.9);
         } else { edge.setAlpha(0); }
         txt.setText(`[${an}]${c.name}\n${ready ? '【発動！】' : `${pct}%`}`)
-          .setStyle({ color: ready ? '#ccffee' : (r > 0.6 ? '#aaddff' : '#556677'), fontSize:'11px', align:'center' });
+          .setStyle({ color:'#ffffff', fontSize:'11px', align:'center', stroke:'#000', strokeThickness:3 });
       }
     }
   }
@@ -765,25 +772,25 @@ class MainScene extends Phaser.Scene {
     const col = idx % 3, row = Math.floor(idx / 3);
     const cx = GRID_X0 + col * CELL_W + CELL_W / 2;
     const bot = GRID_TOP + row * CELL_H + CELL_H / 2 + cellH4 / 2;
-    // fill: attr color, white-flash when ready
+    // ghost: faint full-cell tint — shows the "vessel" color before liquid fills it
+    this.cGhost[idx].setFillStyle(fillCol).setAlpha(ready ? 0 : 0.11);
+    // liquid fill with wave oscillation
+    const wave = (r > 0.02 && r < 0.98) ? this._waveOff : 0;
+    const fillH = Phaser.Math.Clamp(cellH4 * r + wave, 0, cellH4);
     this.cFill[idx]
-      .setDisplaySize(CELL_W - 4, cellH4 * r)
+      .setDisplaySize(CELL_W - 4, fillH)
       .setFillStyle(ready ? 0xffffff : fillCol)
-      .setAlpha(ready ? 1.0 : 0.72 + r * 0.2);
-    // edge line at top of fill — pulses
+      .setAlpha(ready ? 1.0 : 0.82 + r * 0.14);
+    // surface shimmer: bright white strip centered on the liquid top
     if (r > 0.02 && !ready) {
-      const edgeY = bot - cellH4 * r;
-      this.cEdge[idx].setPosition(cx, edgeY).setAlpha(this._edgeAlpha);
-      this.cEdge[idx].setFillStyle(fillCol);
+      this.cEdge[idx].setPosition(cx, bot - fillH).setAlpha(this._edgeAlpha * 0.9);
     } else {
       this.cEdge[idx].setAlpha(0);
     }
-    // border: dim → attr color → bright green when ready
-    this.cBg[idx].setStrokeStyle(2, ready ? 0x44ffaa : (r > 0.05 ? fillCol : 0x223322));
-    // text: show percentage while charging
+    this.cBg[idx].setStrokeStyle(2, ready ? 0x44ffaa : (r > 0.05 ? fillCol : 0x1a2a1a));
     const pct = Math.floor(r * 100);
     this.cTxt[idx].setText(`[${an}]${c.name}\n${ready ? '【発動！】' : `${pct}%`}`)
-      .setStyle({ color: ready ? '#ccffee' : (r > 0.6 ? '#aaddff' : '#556677'), fontSize:'11px', align:'center' });
+      .setStyle({ color:'#ffffff', fontSize:'11px', align:'center', stroke:'#000', strokeThickness:3 });
   }
 }
 
