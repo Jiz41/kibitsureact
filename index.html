@@ -861,7 +861,7 @@ class MainScene extends Phaser.Scene {
   /* ── Save ───────────────────────────────── */
   _saveGame() {
     saveGame({
-      wave:          this.wave,
+      wave:          this.wave + 1,
       kbHP:          this.kbHP,
       kbHPMax:       this.kbHPMax,
       slashDmg:      this.slashDmg,
@@ -946,6 +946,7 @@ class MainScene extends Phaser.Scene {
 new Phaser.Game({
   type: Phaser.AUTO,
   width: W, height: H,
+  resolution: window.devicePixelRatio || 1,
   backgroundColor: '#000000',
   scene: [TitleScene, MainScene],
   scale: {
