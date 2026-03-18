@@ -220,8 +220,131 @@ class TitleScene extends Phaser.Scene {
     // タイトル・オプションは初期非表示
     [...this._titleObjs, ...this._optsObjs].forEach(o => o.setAlpha(0));
 
+    /* ── ターミナル演出オブジェクト（depth 20で最前面） ── */
+    this._termBg = this.add.rectangle(W/2, H/2, W, H, 0x000000).setDepth(20);
+    this._termScroll = this.add.text(16, 16, '', {
+      fontSize: '12px', color: '#00ff00', fontFamily: 'monospace',
+      lineSpacing: 4, wordWrap: { width: W - 32 }
+    }).setDepth(21);
+    this._termTypeLine = this.add.text(16, H - 90, '', {
+      fontSize: '14px', color: '#00ff00', fontFamily: 'monospace'
+    }).setDepth(21).setAlpha(0);
+    this._termCredit = this.add.text(16, H - 90, '', {
+      fontSize: '14px', color: '#00ff00', fontFamily: 'monospace'
+    }).setDepth(21).setAlpha(0);
+    this._termPush = this.add.text(W/2, H - 48, 'PUSH', {
+      fontSize: '18px', color: '#00ff00', fontFamily: 'monospace',
+      shadow: { offsetX: 0, offsetY: 0, color: '#00ff00', blur: 8, fill: true }
+    }).setOrigin(0.5).setDepth(21).setAlpha(0);
+    this._termPushTw = null;
+    this._termReady  = false;
+
     this.input.on('pointerdown', p => this._tap(p));
-    this._startOp();
+    this._startTerminal();
+  }
+
+  /* ── ターミナル演出 ──────────────────────── */
+  _startTerminal() {
+    this._phase      = 'terminal';
+    this._termReady  = false;
+    this._termScroll.setText('').setAlpha(1);
+    this._termTypeLine.setText('').setAlpha(0);
+    this._termCredit.setText('').setAlpha(0);
+    this._termPush.setAlpha(0);
+
+    const rand = () => {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
+      let s = '';
+      const len = 30 + Math.floor(Math.random() * 40);
+      for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
+      return s;
+    };
+
+    const keywords = [
+      'KAYOU_TEIRINN', 'MUSHUN_REAGAN', 'KAYOUTOUIDOU',
+      'SYS.INIT', 'LOAD_SECTOR', 'MEM_ALLOC', 'EXEC_BOOT',
+    ];
+
+    const lines = [];
+    for (let i = 0; i < 28; i++) {
+      if (i % 5 === 0) {
+        lines.push(keywords[Math.floor(Math.random() * keywords.length)] + '  ' + rand().slice(0, 20));
+      } else {
+        lines.push(rand());
+      }
+    }
+
+    // 1行ずつ60msで流す
+    let idx = 0;
+    const addLine = () => {
+      if (idx >= lines.length) return;
+      const current = this._termScroll.text;
+      const rows = current ? current.split('\n') : [];
+      rows.push(lines[idx++]);
+      if (rows.length > 20) rows.shift();
+      this._termScroll.setText(rows.join('\n'));
+    };
+    const scrollTimer = this.time.addEvent({ delay: 80, repeat: lines.length - 1, callback: addLine });
+
+    // 3.5秒後：スクロール停止→タイプライター開始
+    this.time.delayedCall(3500, () => {
+      scrollTimer.remove(false);
+      this._termTypewriter();
+    });
+  }
+
+  _termTypewriter() {
+    const target = 'KAYOUTOUIDOU_';
+    this._termTypeLine.setAlpha(1);
+    let i = 0;
+    const tw = this.time.addEvent({
+      delay: 100, repeat: target.length - 1,
+      callback: () => {
+        i++;
+        this._termTypeLine.setText(target.slice(0, i));
+      }
+    });
+    // タイプ完了後1.2秒で変換エフェクト
+    this.time.delayedCall(100 * target.length + 1200, () => this._termConvert());
+  }
+
+  _termConvert() {
+    // 点滅3回で "制作：華耀東夷堂" に切り替わる演出
+    const finalText = '制作：華耀東夷堂';
+    let count = 0;
+    const flash = this.time.addEvent({
+      delay: 120, repeat: 5,
+      callback: () => {
+        count++;
+        if (count % 2 === 0) {
+          this._termTypeLine.setText('KAYOUTOUIDOU_');
+        } else {
+          this._termTypeLine.setText('##########');
+        }
+        if (count >= 5) {
+          this._termTypeLine.setAlpha(0);
+          this._termCredit.setText(finalText).setAlpha(1);
+          this.time.delayedCall(800, () => this._termShowPush());
+        }
+      }
+    });
+  }
+
+  _termShowPush() {
+    this._termPush.setAlpha(1);
+    this._termReady = true;
+    // 点滅
+    const pv = { v: 1 };
+    this._termPushTw = this.tweens.add({
+      targets: pv, v: 0.1, yoyo: true, repeat: -1, duration: 500, ease: 'Linear',
+      onUpdate: () => { this._termPush.setAlpha(pv.v); }
+    });
+  }
+
+  _terminalHide() {
+    if (this._termPushTw) { this._termPushTw.destroy(); this._termPushTw = null; }
+    [this._termBg, this._termScroll, this._termTypeLine, this._termCredit, this._termPush]
+      .forEach(o => o.setAlpha(0));
   }
 
   /* ── OP演出 ─────────────────────────────── */
@@ -235,7 +358,6 @@ class TitleScene extends Phaser.Scene {
     // 画像の自然サイズ × startScale = 表示高さ。下端をHに合わせるにはyを上方向にシフト
     const startY = H - (this._opBg.height * startScale) / 2;
 
-    if (this._bgm && this._opts.bgm && !this._bgm.isPlaying) { this._bgm.play(); }
     this._opBg.setScale(startScale).setY(startY).setAlpha(1);
     this._opLogoBg.clearMask().setAlpha(0);
     this._opLogo.clearMask().setCrop().setAlpha(0);
@@ -354,6 +476,15 @@ class TitleScene extends Phaser.Scene {
   /* ── タップ処理 ─────────────────────────── */
   _tap(ptr) {
     const { x, y } = ptr;
+
+    // ターミナル演出：PUSH表示後のみ通過
+    if (this._phase === 'terminal') {
+      if (!this._termReady) return;
+      this._terminalHide();
+      if (this._bgm && this._opts.bgm) this._bgm.play();
+      this._startOp();
+      return;
+    }
 
     // OP演出中：ズームアニメーション中のみスキップ
     if (this._phase === 'op') {
