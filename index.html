@@ -137,8 +137,15 @@ class TitleScene extends Phaser.Scene {
     this._zoomTween  = null;
 
     /* ── OP背景（op.jpg） ── */
-    this._opBg = this.add.image(W / 2, H / 2, 'op_bg')
-      .setDisplaySize(W, H).setDepth(0).setAlpha(0);
+    this._opBg = this.add.image(W / 2, H / 2, 'op_bg').setDepth(0).setAlpha(0);
+    // 縦横比を維持して画面全体をcoverするスケールを計算
+    {
+      const src = this.textures.get('op_bg').getSourceImage();
+      this._opBaseScale = (src.width > 0 && src.height > 0)
+        ? Math.max(W / src.width, H / src.height)
+        : 1;
+    }
+    this._opBg.setScale(this._opBaseScale);
 
     /* ── タイトルロゴ（title.png） ── */
     this._opLogo = this.add.image(-200, H * 0.35, 'title_logo')
@@ -213,9 +220,11 @@ class TitleScene extends Phaser.Scene {
     this._phase      = 'op';
     this._opZoomDone = false;
 
-    // 足元アップ（スケール1.6、画像を上にシフトして下部を表示）
-    const startScale = 1.6;
-    const startY     = H * (1 - startScale / 2); // 画像下端をH底に合わせる
+    // 足元アップ：coverスケールの1.6倍でズームイン、画像下端を画面底に合わせる
+    const zoomFactor = 1.6;
+    const startScale = this._opBaseScale * zoomFactor;
+    // 画像の自然サイズ × startScale = 表示高さ。下端をHに合わせるにはyを上方向にシフト
+    const startY = H - (this._opBg.height * startScale) / 2;
 
     this._opBg.setScale(startScale).setY(startY).setAlpha(1);
     this._opLogo.setX(-200).setAlpha(0);
@@ -223,11 +232,11 @@ class TitleScene extends Phaser.Scene {
     this._opTapLbl.setAlpha(0);
     this._blinkTw.pause();
 
-    // ズームアウトトゥイーン（3〜4秒）
+    // ズームアウトトゥイーン（3〜4秒）：coverスケールまで戻して全景表示
     this._zoomTween = this.tweens.add({
       targets:  this._opBg,
       y:        H / 2,
-      scale:    1.0,
+      scale:    this._opBaseScale,
       duration: 4000,
       ease:     'Sine.easeInOut',
       onComplete: () => { this._zoomTween = null; this._opZoomComplete(); }
@@ -237,7 +246,7 @@ class TitleScene extends Phaser.Scene {
   // タップによるズームスキップ
   _opSkipZoom() {
     if (this._zoomTween) { this._zoomTween.stop(); this._zoomTween = null; }
-    this._opBg.setY(H / 2).setScale(1.0);
+    this._opBg.setY(H / 2).setScale(this._opBaseScale);
     this._opZoomComplete();
   }
 
