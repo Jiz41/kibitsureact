@@ -867,7 +867,13 @@ class MainScene extends Phaser.Scene {
       this.defeated++; this.totalExp += oni.exp;
       const wasBoss = oni.isBoss;
       this._oniRm(oni);
-      if (wasBoss) { this._stopBossTimers(); if (!this.waveDone) this._waveClearBoss(); }
+      if (wasBoss) {
+        this._stopBossTimers();
+        if (!this.waveDone) {
+          if (this.wave % 10 === 0) this._waveClearBoss();
+          else this._waveClear();
+        }
+      }
     }
   }
 
