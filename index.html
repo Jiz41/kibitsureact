@@ -258,17 +258,14 @@ class TitleScene extends Phaser.Scene {
     this._opZoomDone = true;
     this._opLogoBg.setAlpha(0.55);
 
-    // ロゴをセンターに固定し alpha=1 にした上でマスクで隠す
+    // ロゴをセンターに固定して非表示にした上でマスクをかける
+    // ※ preFX と GeometryMask は同時使用不可（描画パスが競合する）
+    //   → ワイプ中は preFX なし、完了後に _opLogoComplete でグロー付与
     this._opLogo.setPosition(W / 2, H * 0.35).setAlpha(1);
+    if (this._opLogo.preFX) this._opLogo.preFX.clear(); // 残留FXをリセット
 
-    // ③ 白グロー（Phaser 3.60 preFX）
-    if (this._opLogo.preFX) {
-      this._opLogo.preFX.clear();
-      this._opLogo.preFX.addGlow(0xffffff, 5, 0, false, 0.1, 20);
-    }
-
-    // ④ GeometryMask で上から下へワイプ
-    const logoH   = this._opLogo.displayHeight;
+    // GeometryMask で上から下へワイプ
+    const logoH    = this._opLogo.displayHeight;
     const logoTopY = H * 0.35 - logoH / 2;
     const maskGfx  = this.make.graphics({ add: false });
     const mask     = maskGfx.createGeometryMask();
@@ -276,7 +273,7 @@ class TitleScene extends Phaser.Scene {
 
     this.tweens.addCounter({
       from: 0, to: logoH,
-      duration: 1000,
+      duration: 2000,
       ease: 'Sine.easeIn',
       onUpdate: (tween) => {
         const h = tween.getValue();
@@ -291,8 +288,12 @@ class TitleScene extends Phaser.Scene {
     });
   }
 
-  // ロゴイン完了 → クレジット・画面押下セヨ点滅表示
+  // ロゴイン完了 → グロー付与・クレジット・画面押下セヨ点滅表示
   _opLogoComplete() {
+    // ワイプ完了後にグローを付与（preFX はマスク解除後に使用）
+    if (this._opLogo.preFX) {
+      this._opLogo.preFX.addGlow(0xffffff, 5, 0, false, 0.1, 20);
+    }
     this._opCreditTxt.setAlpha(1);
     this._opTapLbl.setAlpha(1);
     // 毎回新規生成することで paused 状態の初期値問題を回避
