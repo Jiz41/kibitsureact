@@ -164,8 +164,8 @@ class TitleScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(2).setAlpha(0);
 
     /* ── 画面押下セヨ（tween は _opLogoComplete で毎回生成） ── */
-    this._opTapLbl = this.add.text(W / 2, H * 0.72, '画面押下セヨ', {
-      fontSize: '30px', color: '#88ffcc', fontFamily: 'serif'
+    this._opTapLbl = this.add.text(W / 2, H * 0.60, '画面押下セヨ', {
+      fontSize: '45px', color: '#88ffcc', fontFamily: 'serif'
     }).setOrigin(0.5).setDepth(2).setAlpha(0);
     if (this._opTapLbl.preFX) {
       this._opTapLbl.preFX.addGlow(0xffffff, 4, 0, false);
