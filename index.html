@@ -129,6 +129,9 @@ class TitleScene extends Phaser.Scene {
     this.load.image('op_bg',      'op.jpg');
     this.load.image('title_logo', 'title.png');
     this.load.audio('title_bgm',  'kibitsureact.mp3');
+    this.load.on('loaderror', (file) => {
+      console.warn('load error:', file.key);
+    });
   }
 
   create() {
@@ -136,7 +139,9 @@ class TitleScene extends Phaser.Scene {
     this._hasSave = !!loadGame();
     this._opZoomDone = false;
     this._zoomTween  = null;
-    this._bgm = this.sound.add('title_bgm', { loop: true, volume: 0.7 });
+    this._bgm = this.cache.audio.has('title_bgm')
+      ? this.sound.add('title_bgm', { loop: true, volume: 0.7 })
+      : null;
 
     /* ── OP背景（op.jpg） ── */
     this._opBg = this.add.image(W / 2, H / 2, 'op_bg').setDepth(0).setAlpha(0);
@@ -230,7 +235,7 @@ class TitleScene extends Phaser.Scene {
     // 画像の自然サイズ × startScale = 表示高さ。下端をHに合わせるにはyを上方向にシフト
     const startY = H - (this._opBg.height * startScale) / 2;
 
-    if (this._opts.bgm && !this._bgm.isPlaying) { this._bgm.play(); }
+    if (this._bgm && this._opts.bgm && !this._bgm.isPlaying) { this._bgm.play(); }
     this._opBg.setScale(startScale).setY(startY).setAlpha(1);
     this._opLogoBg.clearMask().setAlpha(0);
     this._opLogo.clearMask().setCrop().setAlpha(0);
@@ -385,8 +390,10 @@ class TitleScene extends Phaser.Scene {
           saveOpts(this._opts);
           this._refreshOpts();
           if (btn.key === 'bgm') {
-            if (this._opts.bgm) { if (!this._bgm.isPlaying) this._bgm.play(); }
-            else                { this._bgm.stop(); }
+            if (this._bgm) {
+              if (this._opts.bgm) { if (!this._bgm.isPlaying) this._bgm.play(); }
+              else                { this._bgm.stop(); }
+            }
           }
           return;
         }
