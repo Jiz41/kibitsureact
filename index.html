@@ -35,6 +35,9 @@
   document.addEventListener('pointerdown', tryFS, true);
 })();
 
+/* ── Scenario data ──────────────────────────── */
+let SCENARIO = null;
+
 /* ── Save / Options helpers ─────────────────── */
 const SAVE_KEY = 'kbt_save';
 const OPTS_KEY = 'kbt_opts';
@@ -943,17 +946,23 @@ class MainScene extends Phaser.Scene {
 }
 
 /* ── Phaser ─────────────────────────────────── */
-new Phaser.Game({
-  type: Phaser.AUTO,
-  width: W, height: H,
-  resolution: window.devicePixelRatio || 1,
-  backgroundColor: '#000000',
-  scene: [TitleScene, MainScene],
-  scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH
-  }
-});
+fetch('scenario.json')
+  .then(r => r.json())
+  .then(data => {
+    SCENARIO = data;
+    new Phaser.Game({
+      type: Phaser.AUTO,
+      width: W, height: H,
+      resolution: window.devicePixelRatio || 1,
+      backgroundColor: '#000000',
+      scene: [TitleScene, MainScene],
+      scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+      }
+    });
+  })
+  .catch(e => console.error('scenario.json の読み込みに失敗しました:', e));
 </script>
 </body>
 </html>
