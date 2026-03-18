@@ -72,18 +72,17 @@ const SB_Y = BATTLE_H - 42;
 const KB_X = 72, KB_Y = BATTLE_H / 2, KB_W = 42, KB_H = 64;
 
 /* ── Oni ────────────────────────────────────── */
-const ONI_HP   = 10, /* 元: 160 */ ONI_SPD  = 55, ONI_DMG  = 15;
+const ONI_HP   = 160, ONI_SPD  = 55, ONI_DMG  = 15;
 const ONI_ATK  = 2000, ONI_RNG = 75, ONI_INT  = 2000;
 const ONI_WAVE = 10,   ONI_W   = 38, ONI_H    = 54;
 const ONI_BW   = 38,   ONI_BH  = 5;
 
 /* ── Named ──────────────────────────────────── */
-const NM_HP = 10, /* 元: 480 */ NM_SPD = 35, NM_DMG = 25;
-const NM_NAMES = ['茨木鬼', '酒呑童子', '大嶽丸', '星熊童子'];
+const NM_HP = 480, NM_SPD = 35, NM_DMG = 25;
 
 /* ── Boss ───────────────────────────────────── */
-const BOSS_HP = 10, /* 元: 800 */ BOSS_SPD = 20, BOSS_DMG = 35;
-const BOSS_NAMES = ['温羅', '磐石鬼', '暗夜王'];
+const BOSS_HP = 800, BOSS_SPD = 20, BOSS_DMG = 35;
+const BOSS_NAMES_BY_CHAPTER = ['温羅', '茨木童子', '酒呑童子', '大嶽丸', '空無童子'];
 
 /* ── Bullet ─────────────────────────────────── */
 const BUL_DMG = 20, BUL_MS = 1300, BUL_SPD = 300, BUL_RNG = 320;
@@ -278,6 +277,7 @@ class MainScene extends Phaser.Scene {
 
     this._cpVis = false; this._upgVis = false;
     this.dialogActive = false;
+    this._bossSpawnTimerKobuki = null; this._bossSpawnTimerNamed = null;
     this._dlgLines = []; this._dlgIdx = 0; this._dlgOnComplete = null;
 
     this._bg();    this._kb();    this._hdr();
@@ -328,7 +328,7 @@ class MainScene extends Phaser.Scene {
     // boss wave
     if (this.spawned >= ONI_WAVE && !this.bossSpawned) {
       this.bossSpawned = true;
-      this._spawnOni(false); this._spawnOni(false); this._spawnBoss();
+      this._spawnBoss();
     }
 
     // oni AI
@@ -768,7 +768,7 @@ class MainScene extends Phaser.Scene {
     const dmg   = named ? NM_DMG : ONI_DMG;
     const bw    = named ? 52 : ONI_BW;
     const hSz   = named ? 64 : ONI_H;
-    const name  = named ? NM_NAMES[Phaser.Math.Between(0, 3)] : '鬼';
+    const name  = named ? '中鬼' : '小鬼';
     const attrPool = ['fire', 'water', 'earth', 'wind'];
     const attrChance = Math.min(1, (this.wave - 2) * 0.25);
     const attr = (this.wave >= 3 && Math.random() < attrChance) ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
@@ -783,10 +783,46 @@ class MainScene extends Phaser.Scene {
         this._dlgShow(chap.boss_scene, null);
       }
     }
-    const name = BOSS_NAMES[Phaser.Math.Between(0, 2)];
+    const chapIdx = Math.min(this.chapter - 1, BOSS_NAMES_BY_CHAPTER.length - 1);
+    const name = BOSS_NAMES_BY_CHAPTER[chapIdx];
     const attrPool = ['fire', 'water', 'earth', 'wind'];
     const attr = this.wave >= 2 ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
     this._makeOni(W + 36, BATTLE_H / 2, 56, 84, 0x220044, 0xff33ff, `【${name}】`, '13px', '#ff88ff', BOSS_HP, BOSS_SPD, BOSS_DMG, 72, EXP_B, true, attr);
+
+    // ボス出現と同時に無限湧き：小鬼1500ms・中鬼4000ms、同時上限8体
+    this._bossSpawnTimerKobuki = this.time.addEvent({
+      delay: 1500, loop: true,
+      callback: () => {
+        if (!this.waveDone && this.onis.countActive(true) < 8) this._spawnBossGrunt(false);
+      }
+    });
+    this._bossSpawnTimerNamed = this.time.addEvent({
+      delay: 4000, loop: true,
+      callback: () => {
+        if (!this.waveDone && this.onis.countActive(true) < 8) this._spawnBossGrunt(true);
+      }
+    });
+  }
+
+  _spawnBossGrunt(named) {
+    const sy  = Phaser.Math.Between(48, BATTLE_H - 60);
+    const hp  = named ? NM_HP : ONI_HP;
+    const col = named ? 0x661199 : 0xaa1a1a;
+    const stk = named ? 0xcc88ff : 0xff6644;
+    const spd = named ? NM_SPD : ONI_SPD;
+    const dmg = named ? NM_DMG : ONI_DMG;
+    const bw  = named ? 52 : ONI_BW;
+    const hSz = named ? 64 : ONI_H;
+    const nm  = named ? '中鬼' : '小鬼';
+    const attrPool = ['fire', 'water', 'earth', 'wind'];
+    const attrChance = Math.min(1, (this.wave - 2) * 0.25);
+    const attr = (this.wave >= 3 && Math.random() < attrChance) ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
+    this._makeOni(W + 22, sy, named ? 48 : ONI_W, hSz, col, stk, nm, named ? '13px' : '20px', named ? '#ddaaff' : '#ffbbbb', hp, spd, dmg, bw, named ? EXP_N : EXP_G, false, attr);
+  }
+
+  _stopBossTimers() {
+    if (this._bossSpawnTimerKobuki) { this._bossSpawnTimerKobuki.remove(false); this._bossSpawnTimerKobuki = null; }
+    if (this._bossSpawnTimerNamed)  { this._bossSpawnTimerNamed.remove(false);  this._bossSpawnTimerNamed  = null; }
   }
 
   _makeOni(ox, oy, ow, oh, col, stk, name, fs, fc, hp, spd, dmg, bw, exp, isBoss, attr = 'none') {
@@ -827,7 +863,12 @@ class MainScene extends Phaser.Scene {
     oni.hpFill.setDisplaySize(oni.bw * r, oni.barH);
     const col = mult >= 1.0 ? '#ffff44' : mult >= 0.75 ? '#ffffff' : '#888888';
     this._dmgNum(oni.x, oni.y, dmg, col);
-    if (oni.hp <= 0) { this.defeated++; this.totalExp += oni.exp; this._oniRm(oni); }
+    if (oni.hp <= 0) {
+      this.defeated++; this.totalExp += oni.exp;
+      const wasBoss = oni.isBoss;
+      this._oniRm(oni);
+      if (wasBoss) { this._stopBossTimers(); if (!this.waveDone) this._waveClear(); }
+    }
   }
 
   _dmgNum(x, y, dmg, col) {
@@ -866,6 +907,7 @@ class MainScene extends Phaser.Scene {
   }
 
   _nextWave() {
+    this._stopBossTimers();
     this.wave++;
     this.chapter = Math.ceil(this.wave / 10);
     this.spawned = this.defeated = this.spawnTimer = 0;
@@ -873,7 +915,7 @@ class MainScene extends Phaser.Scene {
     this._gridUp();
   }
 
-  _gameOver() { this.dead = true; deleteSave(); this._ov('GAME OVER', '#ff4444', 'タップしてリスタート'); }
+  _gameOver() { this._stopBossTimers(); this.dead = true; deleteSave(); this._ov('GAME OVER', '#ff4444', 'タップしてリスタート'); }
 
   _ov(title, color, sub) {
     this.ovBg.setAlpha(0.55);
