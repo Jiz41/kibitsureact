@@ -80,6 +80,9 @@ const ONI_BW   = 38,   ONI_BH  = 5;
 /* ── Named ──────────────────────────────────── */
 const NM_HP = 10, /* 元: 480 */ NM_SPD = 35, NM_DMG = 25;
 
+/* ── Ogre (WAVE8-9 中ボス) ───────────────────── */
+const OGRE_HP = 400, OGRE_SPD = 30, OGRE_DMG = 28;
+
 /* ── Boss ───────────────────────────────────── */
 const BOSS_HP = 10, /* 元: 800 */ BOSS_SPD = 20, BOSS_DMG = 35;
 const BOSS_NAMES_BY_CHAPTER = ['温羅', '茨木童子', '酒呑童子', '大嶽丸', '空無童子'];
@@ -325,10 +328,13 @@ class MainScene extends Phaser.Scene {
       this.spawnTimer += dt;
       if (this.spawnTimer >= ONI_INT) { this.spawnTimer -= ONI_INT; this._spawnOni(); }
     }
-    // boss wave
+    // boss/ogre wave
     if (this.spawned >= ONI_WAVE && !this.bossSpawned) {
       this.bossSpawned = true;
-      this._spawnBoss();
+      const wic = ((this.wave - 1) % 10) + 1;
+      if (wic === 10)    this._spawnBoss();       // ネームドボス
+      else if (wic >= 8) this._spawnOgre();       // 大鬼（WAVE8-9）
+      // WAVE1-7: bossSpawned=trueのみ、全滅でwaveClear発火
     }
 
     // oni AI
@@ -759,8 +765,10 @@ class MainScene extends Phaser.Scene {
   /* ── Oni ────────────────────────────────── */
   _spawnOni(count = true) {
     if (count) this.spawned++;
-    const sy    = Phaser.Math.Between(48, BATTLE_H - 60);
-    const named = this.wave >= 2 && count && (this.spawned % 4 === 0) && Math.random() < (this.wave - 1) * 0.15;
+    const sy  = Phaser.Math.Between(48, BATTLE_H - 60);
+    const wic = ((this.wave - 1) % 10) + 1; // 章内WAVE番号（1〜10）
+    // WAVE5-7から中鬼が混じる（3体に1体）
+    const named = wic >= 5 && wic <= 7 && count && (this.spawned % 3 === 0);
     const hp    = named ? NM_HP : ONI_HP;
     const col   = named ? 0x661199 : 0xaa1a1a;
     const stk   = named ? 0xcc88ff : 0xff6644;
@@ -773,6 +781,17 @@ class MainScene extends Phaser.Scene {
     const attrChance = Math.min(1, (this.wave - 2) * 0.25);
     const attr = (this.wave >= 3 && Math.random() < attrChance) ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
     this._makeOni(W + 22, sy, named ? 48 : ONI_W, hSz, col, stk, name, named ? '13px' : '20px', named ? '#ddaaff' : '#ffbbbb', hp, spd, dmg, bw, named ? EXP_N : EXP_G, false, attr);
+  }
+
+  _spawnOgre() {
+    // WAVE8-9：大鬼（中ボス）+ 小鬼の無限湧き（中鬼なし）
+    this._makeOni(W + 36, BATTLE_H / 2, 52, 78, 0x441100, 0xff8833, '【大鬼】', '13px', '#ffcc88', OGRE_HP, OGRE_SPD, OGRE_DMG, 66, 60, true, 'none');
+    this._bossSpawnTimerKobuki = this.time.addEvent({
+      delay: 1500, loop: true,
+      callback: () => {
+        if (!this.waveDone && this.onis.countActive(true) < 8) this._spawnBossGrunt(false);
+      }
+    });
   }
 
   _spawnBoss() {
