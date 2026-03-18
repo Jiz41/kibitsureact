@@ -164,11 +164,11 @@ class TitleScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(2).setAlpha(0);
 
     /* ── 画面押下セヨ（tween は _opLogoComplete で毎回生成） ── */
-    this._opTapLbl = this.add.text(W / 2, H * 0.60, '画面押下セヨ', {
-      fontSize: '45px', color: '#88ffcc', fontFamily: 'serif'
+    this._opTapLbl = this.add.text(W / 2, H * 0.68, '画面押下セヨ', {
+      fontSize: '36px', color: '#88ffcc', fontFamily: 'serif'
     }).setOrigin(0.5).setDepth(2).setAlpha(0);
     if (this._opTapLbl.preFX) {
-      this._opTapLbl.preFX.addGlow(0xffffff, 4, 0, false);
+      this._opTapLbl.preFX.addGlow(0xffffff, 2, 0, false, 0.1, 10);
     }
     this._blinkTw = null;
 
@@ -302,12 +302,16 @@ class TitleScene extends Phaser.Scene {
   _opLogoComplete() {
     this._opCreditTxt.setAlpha(1);
     this._opTapLbl.setAlpha(1);
-    // 毎回新規生成することで paused 状態の初期値問題を回避
-    if (this._blinkTw) this._blinkTw.remove();
+    if (this._blinkTw) { this._blinkTw.remove(); this._blinkTw = null; }
+    // preFX使用時はgameObject.alphaではなくtintFill経由でなく、
+    // setAlphaをtweenで直接操作する（yoyo+repeatで点滅）
     this._blinkTw = this.tweens.add({
-      targets: this._opTapLbl,
-      alpha: { from: 1, to: 0.1 },
-      yoyo: true, repeat: -1, duration: 700
+      targets:  this._opTapLbl,
+      alpha:    0.1,
+      yoyo:     true,
+      repeat:   -1,
+      duration: 700,
+      ease:     'Linear'
     });
     this._phase = 'tap';
   }
