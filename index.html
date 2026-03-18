@@ -147,18 +147,16 @@ class TitleScene extends Phaser.Scene {
     }
     this._opBg.setScale(this._opBaseScale);
 
-    /* ── ロゴContainer（黒帯 + title.png をまとめてワイプ） ── */
-    // 黒帯：fillAlpha=0.55 で半透明
-    const _logoBgRect = this.add.rectangle(W / 2, H * 0.35, W, H * 0.28, 0x000000, 0.55);
-    // ロゴ画像
-    const _logoImg = this.add.image(W / 2, H * 0.35, 'title_logo');
-    if (_logoImg.width > 0) {
-      _logoImg.setScale((W * 0.75) / _logoImg.width);
-    }
-    this._opLogo          = _logoImg;   // グロー付与などに使用
-    // Container にまとめる（子は Containerが管理、scene display listから外れる）
-    this._opLogoContainer = this.add.container(0, 0, [_logoBgRect, _logoImg])
+    /* ── 黒帯（ワイプ対象・グローなし） ── */
+    this._opLogoBg = this.add.rectangle(W / 2, H * 0.35, W, H * 0.28, 0x000000, 0.55)
       .setDepth(1).setAlpha(0);
+
+    /* ── ロゴ画像（ワイプ対象・グローあり） ── */
+    this._opLogo = this.add.image(W / 2, H * 0.35, 'title_logo')
+      .setDepth(2).setAlpha(0);
+    if (this._opLogo.width > 0) {
+      this._opLogo.setScale((W * 0.75) / this._opLogo.width);
+    }
 
     /* ── 制作クレジット ── */
     this._opCreditTxt = this.add.text(W / 2, H * 0.88, '制作：華耀東夷堂', {
@@ -230,7 +228,8 @@ class TitleScene extends Phaser.Scene {
     const startY = H - (this._opBg.height * startScale) / 2;
 
     this._opBg.setScale(startScale).setY(startY).setAlpha(1);
-    this._opLogoContainer.setAlpha(0);
+    this._opLogoBg.clearMask().setAlpha(0);
+    this._opLogo.clearMask().setAlpha(0);
     this._opCreditTxt.setAlpha(0);
     this._opTapLbl.setAlpha(0);
     if (this._blinkTw) { this._blinkTw.remove(); this._blinkTw = null; }
@@ -253,29 +252,32 @@ class TitleScene extends Phaser.Scene {
     this._opZoomComplete();
   }
 
-  // ズームアウト完了 → ロゴを上から下へワイプ表示
+  // ズームアウト完了 → ロゴ＋黒帯を上から下へワイプ表示
   _opZoomComplete() {
     this._opZoomDone = true;
 
-    // ワイプ開始前にグローを付与
+    // 両オブジェクトを表示（マスクで最初は隠す）
+    this._opLogoBg.setAlpha(1);
+    this._opLogo.setAlpha(1);
+
+    // ① _logoImg のみにグローを付与（黒帯にはかけない）
     if (this._opLogo.preFX) {
       this._opLogo.preFX.clear();
       this._opLogo.preFX.addGlow(0xffffff, 5, 0, false, 0.1, 20);
     }
 
-    // Container を表示状態にしてマスクで隠す
-    this._opLogoContainer.setAlpha(1);
+    // ② ワイプ範囲を計算（黒帯高さとロゴ高さの大きい方）
+    const logoH  = this._opLogo.displayHeight;
+    const totalH = Math.max(H * 0.28, logoH);
+    const topY   = H * 0.35 - totalH / 2;
 
-    // Container のバウンディング高さ（黒帯 H*0.28 とロゴ高さの大きい方）
-    const logoH   = this._opLogo.displayHeight;
-    const totalH  = Math.max(H * 0.28, logoH);
-    const topY    = H * 0.35 - totalH / 2;
-
-    // Container 全体に GeometryMask をかけてワイプ
+    // ③ 共通の Graphics マスクを作成し両オブジェクトに個別に setMask()
     const maskGfx = this.make.graphics({ add: false });
     const mask    = maskGfx.createGeometryMask();
-    this._opLogoContainer.setMask(mask);
+    this._opLogoBg.setMask(mask);
+    this._opLogo.setMask(mask);
 
+    // ④ マスク height を 0 → totalH へ 2 秒でトゥイーン
     this.tweens.addCounter({
       from: 0, to: totalH,
       duration: 2000,
@@ -287,7 +289,10 @@ class TitleScene extends Phaser.Scene {
         maskGfx.fillRect(0, topY, W, h);
       },
       onComplete: () => {
-        this._opLogoContainer.clearMask(true); // マスク解除・破棄
+        // マスクを外して Graphics を破棄
+        this._opLogoBg.clearMask();
+        this._opLogo.clearMask();
+        maskGfx.destroy();
         this._opLogoComplete();
       }
     });
@@ -311,7 +316,9 @@ class TitleScene extends Phaser.Scene {
   _setPhase(phase) {
     this._phase = phase;
     // OP関連を隠す
-    [this._opBg, this._opLogoContainer, this._opCreditTxt, this._opTapLbl].forEach(o => o.setAlpha(0));
+    this._opLogoBg.clearMask().setAlpha(0);
+    this._opLogo.clearMask().setAlpha(0);
+    [this._opBg, this._opCreditTxt, this._opTapLbl].forEach(o => o.setAlpha(0));
     if (this._blinkTw) { this._blinkTw.remove(); this._blinkTw = null; }
     // title/optsを全非表示にしてから対象だけ表示
     [...this._titleObjs, ...this._optsObjs].forEach(o => o.setAlpha(0));
