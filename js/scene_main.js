@@ -18,7 +18,7 @@ class MainScene extends Phaser.Scene {
     this.unlockedSlots = 0;
     this.slotCharms  = new Array(9).fill(null);
     this.charmTimers = new Array(9).fill(0);
-    this.ownedCharms = CHARM_DEFS.map(c => ({ ...c }));
+    this.ownedCharms = [];
 
     // load save on continue
     const _initType = (this.scene.settings.data || {}).type;
@@ -101,11 +101,32 @@ class MainScene extends Phaser.Scene {
     // oni AI
     for (const oni of [...this.onis.getChildren()]) {
       if (!oni.active) continue;
-      if (oni.x - KB_X > ONI_RNG) {
-        oni.x -= oni.spd * (dt / 1000);
-      } else {
-        oni.atkT += dt;
-        if (oni.atkT >= ONI_ATK) { oni.atkT -= ONI_ATK; this._kbDmg(oni.dmg); }
+      // stun countdown
+      if (oni.stunTimer > 0) oni.stunTimer = Math.max(0, oni.stunTimer - dt);
+      // knockback movement
+      if (oni.knockTimer > 0) {
+        oni.knockTimer = Math.max(0, oni.knockTimer - dt);
+        oni.x += oni.spd * 2.5 * (dt / 1000);
+      }
+      // burn DoT
+      if (oni.burnTimer > 0) {
+        oni.burnTimer = Math.max(0, oni.burnTimer - dt);
+        oni.burnTick += dt;
+        if (oni.burnTick >= 500) { oni.burnTick -= 500; this._oniDmg(oni, 8, 'fire'); }
+      }
+      // root DoT
+      if (oni.rootStacks > 0) {
+        oni.rootTick += dt;
+        if (oni.rootTick >= 500) { oni.rootTick -= 500; this._oniDmg(oni, oni.rootStacks * 5, 'earth'); }
+      }
+      // movement & attack (skip while stunned or knocked back)
+      if (oni.stunTimer <= 0 && oni.knockTimer <= 0) {
+        if (oni.x - KB_X > ONI_RNG) {
+          oni.x -= oni.spd * (dt / 1000);
+        } else {
+          oni.atkT += dt;
+          if (oni.atkT >= ONI_ATK) { oni.atkT -= ONI_ATK; this._kbDmg(oni.dmg); }
+        }
       }
       this._oniSync(oni);
       if (oni.x < -60) this._oniRm(oni);
@@ -503,6 +524,58 @@ class MainScene extends Phaser.Scene {
           if (rem.length) this._spell(rem.reduce((a, b) => a.x < b.x ? a : b), c.dmg, 0x88ffaa, c.attr);
         });
       }
+
+    } else if (c.id === 'burst') {
+      for (const oni of list) {
+        if (Math.abs(oni.x - KB_X) < 180) this._oniDmg(oni, c.dmg, c.attr);
+      }
+      this._burstFx();
+
+    } else if (c.id === 'burn') {
+      front.burnTimer = 4000; front.burnTick = 0;
+      this._oniDmg(front, c.dmg, c.attr);
+      this._burnFx(front);
+
+    } else if (c.id === 'rock') {
+      for (const oni of list) { this._oniDmg(oni, c.dmg, c.attr); oni.stunTimer = 1500; }
+      this._rockFx();
+
+    } else if (c.id === 'root') {
+      front.rootStacks++; front.rootTick = 0;
+      this._oniDmg(front, c.dmg * front.rootStacks, c.attr);
+      this._rootFx(front);
+
+    } else if (c.id === 'slash') {
+      const dx = front.x - KB_X, dy = front.y - KB_Y;
+      const base = Math.atan2(dy, dx);
+      for (const oni of list) {
+        let d = Math.abs(Math.atan2(oni.y - KB_Y, oni.x - KB_X) - base);
+        if (d > Math.PI) d = 2 * Math.PI - d;
+        if (d < 0.6) this._oniDmg(oni, c.dmg, c.attr);
+      }
+      this._slashWindFx(base);
+
+    } else if (c.id === 'blow') {
+      for (const oni of list) { oni.knockTimer = 1000; this._oniDmg(oni, c.dmg, c.attr); }
+      this._blowFx();
+
+    } else if (c.id === 'chain') {
+      const targets = [...list].sort((a, b) => a.x - b.x).slice(0, 5);
+      targets.forEach((oni, i) => {
+        this.time.delayedCall(i * 120, () => {
+          if (oni.active) this._oniDmg(oni, Math.round(c.dmg * Math.pow(0.8, i)), c.attr);
+        });
+      });
+
+    } else if (c.id === 'mist') {
+      this._mistFx();
+      for (let t = 0; t < 6; t++) {
+        this.time.delayedCall(t * 500, () => {
+          for (const oni of this.onis.getChildren()) {
+            if (oni.active) this._oniDmg(oni, c.dmg, c.attr);
+          }
+        });
+      }
     }
   }
 
@@ -521,6 +594,70 @@ class MainScene extends Phaser.Scene {
     g.lineTo(KB_X + KB_W/2 + Math.cos(ang) * 500, KB_Y + Math.sin(ang) * 500);
     g.strokePath();
     this.tweens.add({ targets: g, alpha: 0, duration: 300, onComplete: () => g.destroy() });
+  }
+
+  _burstFx() {
+    const g = this.add.graphics().setDepth(8);
+    g.fillStyle(0xff5500, 0.5); g.fillCircle(KB_X + 90, KB_Y, 100);
+    this.tweens.add({ targets: g, alpha: 0, scaleX: 1.5, scaleY: 1.5, duration: 350, onComplete: () => g.destroy() });
+  }
+
+  _burnFx(oni) {
+    if (!oni?.active) return;
+    const g = this.add.graphics().setDepth(8);
+    g.fillStyle(0xff3300, 0.7); g.fillCircle(oni.x, oni.y, 22);
+    this.tweens.add({ targets: g, alpha: 0, duration: 400, onComplete: () => g.destroy() });
+  }
+
+  _rockFx() {
+    for (let i = 0; i < 4; i++) {
+      const rx = Phaser.Math.Between(80, W - 30);
+      const ry = Phaser.Math.Between(30, BATTLE_H - 40);
+      const g = this.add.graphics().setDepth(8).setAlpha(0);
+      g.fillStyle(0x886644, 1); g.fillRect(-12, -12, 24, 24);
+      g.x = rx; g.y = 0;
+      this.tweens.add({ targets: g, y: ry, alpha: 1, duration: 300, delay: i * 80,
+        onComplete: () => this.tweens.add({ targets: g, alpha: 0, duration: 250, onComplete: () => g.destroy() }) });
+    }
+  }
+
+  _rootFx(oni) {
+    if (!oni?.active) return;
+    const g = this.add.graphics().setDepth(8);
+    g.lineStyle(3, 0x88bb33, 0.9);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      g.strokeCircle(oni.x + Math.cos(a) * 18, oni.y + Math.sin(a) * 18, 6);
+    }
+    this.tweens.add({ targets: g, alpha: 0, duration: 500, onComplete: () => g.destroy() });
+  }
+
+  _slashWindFx(base) {
+    const g = this.add.graphics().setDepth(8);
+    g.lineStyle(4, 0x99ffaa, 0.85);
+    for (let i = -2; i <= 2; i++) {
+      const a = base + i * 0.12;
+      g.beginPath();
+      g.moveTo(KB_X + KB_W/2, KB_Y);
+      g.lineTo(KB_X + KB_W/2 + Math.cos(a) * 340, KB_Y + Math.sin(a) * 340);
+      g.strokePath();
+    }
+    this.tweens.add({ targets: g, alpha: 0, duration: 250, onComplete: () => g.destroy() });
+  }
+
+  _blowFx() {
+    const g = this.add.graphics().setDepth(8);
+    g.lineStyle(6, 0xccffee, 0.8);
+    g.beginPath(); g.moveTo(KB_X + KB_W/2, 0); g.lineTo(KB_X + KB_W/2, BATTLE_H);
+    g.strokePath();
+    this.tweens.add({ targets: g, alpha: 0, scaleX: 3, duration: 300, onComplete: () => g.destroy() });
+  }
+
+  _mistFx() {
+    const g = this.add.graphics().setDepth(2).setAlpha(0);
+    g.fillStyle(0x4499ff, 0.2); g.fillRect(0, 0, W, BATTLE_H);
+    this.tweens.add({ targets: g, alpha: 1, duration: 400, yoyo: true, repeat: 2,
+      onComplete: () => g.destroy() });
   }
 
   /* ── Oni ────────────────────────────────── */
@@ -623,6 +760,9 @@ class MainScene extends Phaser.Scene {
     body.lbl = lbl; body.hpBg = hpBg; body.hpFill = hpFill; body.attrLbl = attrLbl;
     body.spd = spd; body.dmg = dmg; body.bw = bw; body.hSz = oh; body.barH = barH;
     body.exp = exp; body.isBoss = isBoss; body.attr = attr;
+    body.burnTimer = 0; body.burnTick = 0;
+    body.rootStacks = 0; body.rootTick = 0;
+    body.stunTimer = 0; body.knockTimer = 0;
     this.onis.add(body);
   }
 
