@@ -187,15 +187,10 @@ class MainScene extends Phaser.Scene {
 
   /* ── Kibitsu ────────────────────────────── */
   _kb() {
-    const h = BATTLE_H * 0.22;          // 72.6px
-    const kx = 160, ky = KB_Y;          // 表示位置（ゲームロジックはKB_Xを継続使用）
-    if (this.textures.exists('kibitsu')) {
-      this.kbSpr = this.add.image(kx, ky, 'kibitsu').setOrigin(0.5, 0.5).setDepth(3);
-      this.kbSpr.setDisplaySize(this.kbSpr.width * h / this.kbSpr.height, h);
-    } else {
-      this.kbSpr = this.add.rectangle(kx, ky, KB_W, KB_H, 0x2255bb).setDepth(3).setStrokeStyle(2, 0x88aaff);
-      this.add.text(kx, ky - 8, 'キビツ', { fontSize:'11px', color:'#ccdeff', fontFamily:'serif' }).setOrigin(0.5).setDepth(4);
-    }
+    const h = BATTLE_H * 0.22;      // 72.6px
+    const kx = 65, ky = KB_Y;      // 門の左柱寄り
+    this.kbSpr = this.add.image(kx, ky, 'kibitsu').setOrigin(0.5, 0.5).setDepth(3);
+    this.kbSpr.setDisplaySize(this.kbSpr.width * h / this.kbSpr.height, h);
     const barY = ky - h / 2 - 8;
     this.add.rectangle(kx - 27, barY, 54, 9, 0x220000).setOrigin(0, 0.5).setDepth(4);
     this.kbHpBar = this.add.rectangle(kx - 27, barY, 54, 9, 0x22dd55).setOrigin(0, 0.5).setDepth(4);
@@ -906,13 +901,8 @@ class MainScene extends Phaser.Scene {
     // oy はスプライト中心座標として渡す
     const actualOy = oy;
 
-    let body;
-    if (this.textures.exists(imgKey)) {
-      body = this.add.image(ox, actualOy, imgKey).setOrigin(0.5, 0.5).setDepth(3);
-      body.setDisplaySize(body.width * sprH / body.height, sprH);
-    } else {
-      body = this.add.rectangle(ox, actualOy, ow, sprH, col).setDepth(3).setStrokeStyle(isBoss ? 3 : 2, stk);
-    }
+    const body = this.add.image(ox, actualOy, imgKey).setOrigin(0.5, 0.5).setDepth(3);
+    body.setDisplaySize(body.width * sprH / body.height, sprH);
 
     const barY   = actualOy - sprH / 2 - 6;
     const barH   = isBoss ? 7 : ONI_BH;
