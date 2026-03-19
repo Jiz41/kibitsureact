@@ -4,6 +4,18 @@
 class MainScene extends Phaser.Scene {
   constructor() { super({ key: 'MainScene' }); }
 
+  preload() {
+    this.load.image('kibitsu',     'kibitsu.png');
+    this.load.image('oni_small',   'oni_small.png');
+    this.load.image('oni_mid',     'oni_mid.png');
+    this.load.image('oni_large',   'oni_large.png');
+    this.load.image('oni_ura',     'oni_ura.png');
+    this.load.image('oni_ibaraki', 'oni_ibaraki.png');
+    this.load.image('oni_shuten',  'oni_shuten.png');
+    this.load.image('oni_otake',   'oni_otake.png');
+    this.load.image('oni_soraki',  'oni_soraki.png');
+  }
+
   create() {
     this.kbHP = this.kbHPMax = 300;
     this.wave = 1;
@@ -175,10 +187,17 @@ class MainScene extends Phaser.Scene {
 
   /* ── Kibitsu ────────────────────────────── */
   _kb() {
-    this.kbBody = this.add.rectangle(KB_X, KB_Y, KB_W, KB_H, 0x2255bb).setDepth(3).setStrokeStyle(2, 0x88aaff);
-    this.add.text(KB_X, KB_Y - 8, 'キビツ', { fontSize:'11px', color:'#ccdeff', fontFamily:'serif' }).setOrigin(0.5).setDepth(4);
-    this.add.rectangle(KB_X, KB_Y - 48, 54, 9, 0x220000).setDepth(4);
-    this.kbHpBar = this.add.rectangle(KB_X - 27, KB_Y - 48, 54, 9, 0x22dd55).setOrigin(0, 0.5).setDepth(4);
+    const h = BATTLE_H * 0.65;
+    const barY = BATTLE_H - h - 10;
+    if (this.textures.exists('kibitsu')) {
+      this.kbSpr = this.add.image(KB_X, BATTLE_H, 'kibitsu').setOrigin(0.5, 1).setDepth(3);
+      this.kbSpr.setDisplaySize(this.kbSpr.width * h / this.kbSpr.height, h);
+    } else {
+      this.kbSpr = this.add.rectangle(KB_X, KB_Y, KB_W, KB_H, 0x2255bb).setDepth(3).setStrokeStyle(2, 0x88aaff);
+      this.add.text(KB_X, KB_Y - 8, 'キビツ', { fontSize:'11px', color:'#ccdeff', fontFamily:'serif' }).setOrigin(0.5).setDepth(4);
+    }
+    this.add.rectangle(KB_X - 27, barY, 54, 9, 0x220000).setOrigin(0, 0.5).setDepth(4);
+    this.kbHpBar = this.add.rectangle(KB_X - 27, barY, 54, 9, 0x22dd55).setOrigin(0, 0.5).setDepth(4);
   }
 
   /* ── Header ─────────────────────────────── */
@@ -793,9 +812,7 @@ class MainScene extends Phaser.Scene {
   /* ── Oni ────────────────────────────────── */
   _spawnOni(count = true) {
     if (count) this.spawned++;
-    const sy  = Phaser.Math.Between(48, BATTLE_H - 60);
-    const wic = ((this.wave - 1) % 10) + 1; // 章内WAVE番号（1〜10）
-    // WAVE5-7から中鬼が混じる（3体に1体）
+    const wic   = ((this.wave - 1) % 10) + 1;
     const named = wic >= 5 && wic <= 7 && count && (this.spawned % 3 === 0);
     const hp    = named ? NM_HP : ONI_HP;
     const col   = named ? 0x661199 : 0xaa1a1a;
@@ -803,17 +820,17 @@ class MainScene extends Phaser.Scene {
     const spd   = named ? NM_SPD : ONI_SPD;
     const dmg   = named ? NM_DMG : ONI_DMG;
     const bw    = named ? 52 : ONI_BW;
-    const hSz   = named ? 64 : ONI_H;
     const name  = named ? '中鬼' : '小鬼';
+    const imgKey = named ? 'oni_mid' : 'oni_small';
     const attrPool = ['fire', 'water', 'earth', 'wind'];
     const attrChance = Math.min(1, (this.wave - 2) * 0.25);
     const attr = (this.wave >= 3 && Math.random() < attrChance) ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
-    this._makeOni(W + 22, sy, named ? 48 : ONI_W, hSz, col, stk, name, named ? '13px' : '20px', named ? '#ddaaff' : '#ffbbbb', hp, spd, dmg, bw, named ? EXP_N : EXP_G, false, attr);
+    this._makeOni(W + 22, BATTLE_H, named ? 48 : ONI_W, named ? 64 : ONI_H, col, stk, name, named ? '13px' : '20px', named ? '#ddaaff' : '#ffbbbb', hp, spd, dmg, bw, named ? EXP_N : EXP_G, false, imgKey, attr);
   }
 
   _spawnOgre() {
     // WAVE8-9：大鬼（isBoss=false）+ 小鬼の無限湧き、全滅でWAVEクリア
-    this._makeOni(W + 36, BATTLE_H / 2, 52, 78, 0x441100, 0xff8833, '【大鬼】', '13px', '#ffcc88', OGRE_HP, OGRE_SPD, OGRE_DMG, 66, 60, false, 'none');
+    this._makeOni(W + 36, BATTLE_H, 52, 78, 0x441100, 0xff8833, '【大鬼】', '13px', '#ffcc88', OGRE_HP, OGRE_SPD, OGRE_DMG, 66, 60, false, 'oni_large', 'none');
     const ogre = this.onis.getLast(true);
     ogre.isOgre = true;
     this._bossSpawnTimerKobuki = this.time.addEvent({
@@ -834,9 +851,11 @@ class MainScene extends Phaser.Scene {
     }
     const chapIdx = Math.min(this.chapter - 1, BOSS_NAMES_BY_CHAPTER.length - 1);
     const name = BOSS_NAMES_BY_CHAPTER[chapIdx];
+    const BOSS_IMGS = ['oni_ura', 'oni_ibaraki', 'oni_shuten', 'oni_otake', 'oni_soraki'];
+    const bossImg = BOSS_IMGS[chapIdx] || 'oni_ura';
     const attrPool = ['fire', 'water', 'earth', 'wind'];
     const attr = this.wave >= 2 ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
-    this._makeOni(W + 36, BATTLE_H / 2, 56, 84, 0x220044, 0xff33ff, `【${name}】`, '13px', '#ff88ff', BOSS_HP, BOSS_SPD, BOSS_DMG, 72, EXP_B, true, attr);
+    this._makeOni(W + 36, BATTLE_H, 56, 84, 0x220044, 0xff33ff, `【${name}】`, '13px', '#ff88ff', BOSS_HP, BOSS_SPD, BOSS_DMG, 72, EXP_B, true, bossImg, attr);
 
     // ボス出現と同時に無限湧き：小鬼1500ms・中鬼4000ms、同時上限8体
     this._bossSpawnTimerKobuki = this.time.addEvent({
@@ -854,19 +873,18 @@ class MainScene extends Phaser.Scene {
   }
 
   _spawnBossGrunt(named) {
-    const sy  = Phaser.Math.Between(48, BATTLE_H - 60);
     const hp  = named ? NM_HP : ONI_HP;
     const col = named ? 0x661199 : 0xaa1a1a;
     const stk = named ? 0xcc88ff : 0xff6644;
     const spd = named ? NM_SPD : ONI_SPD;
     const dmg = named ? NM_DMG : ONI_DMG;
     const bw  = named ? 52 : ONI_BW;
-    const hSz = named ? 64 : ONI_H;
     const nm  = named ? '中鬼' : '小鬼';
+    const imgKey = named ? 'oni_mid' : 'oni_small';
     const attrPool = ['fire', 'water', 'earth', 'wind'];
     const attrChance = Math.min(1, (this.wave - 2) * 0.25);
     const attr = (this.wave >= 3 && Math.random() < attrChance) ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
-    this._makeOni(W + 22, sy, named ? 48 : ONI_W, hSz, col, stk, nm, named ? '13px' : '20px', named ? '#ddaaff' : '#ffbbbb', hp, spd, dmg, bw, named ? EXP_N : EXP_G, false, attr);
+    this._makeOni(W + 22, BATTLE_H, named ? 48 : ONI_W, named ? 64 : ONI_H, col, stk, nm, named ? '13px' : '20px', named ? '#ddaaff' : '#ffbbbb', hp, spd, dmg, bw, named ? EXP_N : EXP_G, false, imgKey, attr);
   }
 
   _stopBossTimers() {
@@ -874,21 +892,36 @@ class MainScene extends Phaser.Scene {
     if (this._bossSpawnTimerNamed)  { this._bossSpawnTimerNamed.remove(false);  this._bossSpawnTimerNamed  = null; }
   }
 
-  _makeOni(ox, oy, ow, oh, col, stk, name, fs, fc, hp, spd, dmg, bw, exp, isBoss, attr = 'none') {
-    const body   = this.add.rectangle(ox, oy, ow, oh, col).setDepth(3).setStrokeStyle(isBoss ? 3 : 2, stk);
-    const lbl    = this.add.text(ox, oy, name, { fontSize: fs, color: fc, fontFamily:'serif' }).setOrigin(0.5).setDepth(4);
-    const barY   = oy - oh/2 - 6;
+  _makeOni(ox, oy, ow, oh, col, stk, name, fs, fc, hp, spd, dmg, bw, exp, isBoss, imgKey, attr = 'none') {
+    // スプライトサイズ (BATTLE_H 比)
+    const ONI_RATIO = { oni_small:0.25, oni_mid:0.35, oni_large:0.50,
+      oni_ura:0.75, oni_ibaraki:0.75, oni_shuten:0.75, oni_otake:0.75, oni_soraki:0.85 };
+    const ratio  = ONI_RATIO[imgKey] || 0.25;
+    const sprH   = BATTLE_H * ratio;
+    // oy = BATTLE_H（地面）を渡すので、スプライト中心 = 地面 - sprH/2
+    const actualOy = oy - sprH / 2;
+
+    let body;
+    if (this.textures.exists(imgKey)) {
+      body = this.add.image(ox, actualOy, imgKey).setOrigin(0.5, 0.5).setDepth(3);
+      body.setDisplaySize(body.width * sprH / body.height, sprH);
+    } else {
+      body = this.add.rectangle(ox, actualOy, ow, sprH, col).setDepth(3).setStrokeStyle(isBoss ? 3 : 2, stk);
+    }
+
+    const barY   = actualOy - sprH / 2 - 6;
     const barH   = isBoss ? 7 : ONI_BH;
+    const lbl    = this.add.text(ox, barY - 13, name, { fontSize: fs, color: fc, fontFamily:'serif', stroke:'#000', strokeThickness:2 }).setOrigin(0.5).setDepth(4);
     const hpBg   = this.add.rectangle(ox - bw/2, barY, bw, barH, 0x330000).setOrigin(0, 0.5).setDepth(4);
     const hpFill = this.add.rectangle(ox - bw/2, barY, bw, barH, isBoss ? 0xff33ff : (col === 0x661199 ? 0xaa44ff : 0xff2222)).setOrigin(0, 0.5).setDepth(4);
     let attrLbl = null;
     if (attr !== 'none') {
       const ac = '#' + ATTR_COLORS[attr].toString(16).padStart(6, '0');
-      attrLbl = this.add.text(ox, barY - 10, ATTR_NAMES[attr], { fontSize:'11px', color: ac, fontFamily:'serif', fontStyle:'bold', stroke:'#000', strokeThickness:2 }).setOrigin(0.5).setDepth(4);
+      attrLbl = this.add.text(ox, barY - 24, ATTR_NAMES[attr], { fontSize:'11px', color: ac, fontFamily:'serif', fontStyle:'bold', stroke:'#000', strokeThickness:2 }).setOrigin(0.5).setDepth(4);
     }
     body.hp = body.maxHp = hp; body.atkT = 0;
     body.lbl = lbl; body.hpBg = hpBg; body.hpFill = hpFill; body.attrLbl = attrLbl;
-    body.spd = spd; body.dmg = dmg; body.bw = bw; body.hSz = oh; body.barH = barH;
+    body.spd = spd; body.dmg = dmg; body.bw = bw; body.hSz = sprH; body.barH = barH;
     body.exp = exp; body.isBoss = isBoss; body.attr = attr;
     body.burnTimer = 0; body.burnTick = 0;
     body.rootStacks = 0; body.rootTick = 0;
@@ -898,10 +931,10 @@ class MainScene extends Phaser.Scene {
 
   _oniSync(oni) {
     const by = oni.y - oni.hSz/2 - 6;
-    oni.lbl.setPosition(oni.x, oni.y);
+    oni.lbl.setPosition(oni.x, by - 13);
     oni.hpBg.setPosition(oni.x - oni.bw/2, by);
     oni.hpFill.setPosition(oni.x - oni.bw/2, by);
-    if (oni.attrLbl) oni.attrLbl.setPosition(oni.x, by - 10);
+    if (oni.attrLbl) oni.attrLbl.setPosition(oni.x, by - 24);
   }
 
   _oniRm(oni) { oni.lbl?.destroy(); oni.hpBg?.destroy(); oni.hpFill?.destroy(); oni.attrLbl?.destroy(); oni.destroy(); }
@@ -914,7 +947,8 @@ class MainScene extends Phaser.Scene {
     const r = Phaser.Math.Clamp(oni.hp / oni.maxHp, 0, 1);
     oni.hpFill.setDisplaySize(oni.bw * r, oni.barH);
     const col = mult >= 1.0 ? '#ffff44' : mult >= 0.75 ? '#ffffff' : '#888888';
-    this._dmgNum(oni.x, oni.y, dmg, col);
+    this._dmgNum(oni.x, oni.y - oni.hSz/2, dmg, col);
+    if (oni.setTint) { oni.setTint(0xff4444); this.time.delayedCall(100, () => { if (oni?.active) oni.clearTint?.(); }); }
     if (oni.hp <= 0) {
       this.defeated++; this.totalExp += oni.exp;
       const wasBoss = oni.isBoss;
@@ -940,8 +974,8 @@ class MainScene extends Phaser.Scene {
     this.kbHP = Math.max(0, this.kbHP - dmg);
     const r = this.kbHP / this.kbHPMax;
     this.kbHpBar.setDisplaySize(54 * r, 9).setFillStyle(r > 0.5 ? 0x22dd55 : r > 0.25 ? 0xddcc22 : 0xdd2222);
-    this.kbBody.setFillStyle(0xff3333);
-    this.time.delayedCall(130, () => { if (this.kbBody?.active) this.kbBody.setFillStyle(0x2255bb); });
+    if (this.kbSpr?.setTint) this.kbSpr.setTint(0xff3333);
+    this.time.delayedCall(130, () => { if (this.kbSpr?.active) this.kbSpr.clearTint?.(); });
     if (this.kbHP <= 0) this._gameOver();
   }
 
