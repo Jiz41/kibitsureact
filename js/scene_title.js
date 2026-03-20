@@ -101,8 +101,8 @@ class TitleScene extends Phaser.Scene {
 
     /* ── ターミナル演出オブジェクト（depth 20で最前面） ── */
     this._termBg = this.add.rectangle(W/2, H/2, W, H, 0x000000).setDepth(20);
-    this._termPool = Array.from({length: 28}, (_, i) =>
-      this.add.text(16, 16 + i * 17, '', {fontSize:'12px', color:'#00ff00', fontFamily:'monospace'}).setDepth(21)
+    this._termPool = Array.from({length: 32}, (_, i) =>
+      this.add.text(16, 16 + i * 16, '', {fontSize:'11px', color:'#00ff00', fontFamily:'monospace'}).setDepth(21)
     );
     this._termTypeLine = this.add.text(16, 258, '', {
       fontSize: '14px', color: '#00ff00', fontFamily: 'monospace'
@@ -224,20 +224,17 @@ class TitleScene extends Phaser.Scene {
       i++;
       this._termRender(rows, {t: base.slice(0, i) + '_', red:false});
       if (i >= base.length) {
-        let vis = true, cnt = 0;
-        this._termCursorTimer = this.time.addEvent({
-          delay: 200, repeat: 5,
-          callback: () => {
-            vis = !vis; cnt++;
-            this._termRender(rows, {t: vis ? base + '_' : base, red:false});
-            if (cnt >= 5) { this._termCursorTimer = null; this._termConvert(rows); }
-          }
+        // 250msでカーソルOFF → 500msで変換へ
+        this.time.delayedCall(250, () => this._termRender(rows, {t: base, red:false}));
+        this._termCursorTimer = this.time.delayedCall(500, () => {
+          this._termCursorTimer = null;
+          this._termConvert(rows);
         });
       } else {
-        this.time.delayedCall(150, tick);
+        this.time.delayedCall(60, tick);
       }
     };
-    this.time.delayedCall(150, tick);
+    this.time.delayedCall(60, tick);
   }
 
   _termConvert(rows) {
@@ -251,9 +248,9 @@ class TitleScene extends Phaser.Scene {
       this._termRender(rows, {t: stages[idx], red:false});
       idx++;
       if (idx < stages.length) {
-        this.time.delayedCall(500, show);
+        this.time.delayedCall(200, show);
       } else {
-        this.time.delayedCall(500, () => this._termShowPush());
+        this.time.delayedCall(200, () => this._termShowPush());
       }
     };
     show();
