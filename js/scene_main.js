@@ -1203,14 +1203,6 @@ class MainScene extends Phaser.Scene {
 
   _lpEnd(p) {
     if (this._lpTimer) { this._lpTimer.remove(false); this._lpTimer = null; }
-    if (!this._lpActive) return;
-    const b = this._tipRemoveBounds;
-    if (b && p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) {
-      this._removeCharmViaTooltip();
-    } else {
-      this._tooltipHide();
-      this._lpActive = false;
-    }
   }
 
   _removeCharmViaTooltip() {
@@ -1233,7 +1225,20 @@ class MainScene extends Phaser.Scene {
       fontSize:'13px', color:'#ffffff', fontFamily:'serif', fontStyle:'bold',
       stroke:'#000', strokeThickness:2,
     }).setOrigin(0.5).setDepth(27).setAlpha(0);
-    this._tipRemoveBounds = null;
+
+    this._tipOverlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0).setDepth(24).setVisible(false);
+    this._tipOverlay.setInteractive();
+    this._tipOverlay.input.enabled = false;
+    this._tipOverlay.on('pointerdown', () => { this._tooltipHide(); this._lpActive = false; });
+
+    this._tipRemoveHit = this.add.rectangle(0, 0, 70, 28, 0xffffff, 0).setDepth(27).setVisible(false);
+    this._tipRemoveHit.setInteractive();
+    this._tipRemoveHit.input.enabled = false;
+    this._tipRemoveHit.on('pointerdown', (pointer, lx, ly, event) => {
+      event.stopPropagation();
+      this._removeCharmViaTooltip();
+    });
+
     this._lpIdx = -1;
   }
 
@@ -1275,7 +1280,8 @@ class MainScene extends Phaser.Scene {
     this._tipRemoveBg.fillRoundedRect(btnX - btnW / 2, btnY - btnH / 2, btnW, btnH, 6);
     this._tipRemoveBg.setAlpha(1);
     this._tipRemoveTxt.setPosition(btnX, btnY).setAlpha(1);
-    this._tipRemoveBounds = { x: btnX - btnW / 2, y: btnY - btnH / 2, w: btnW, h: btnH };
+    this._tipOverlay.setVisible(true); this._tipOverlay.input.enabled = true;
+    this._tipRemoveHit.setPosition(btnX, btnY).setVisible(true); this._tipRemoveHit.input.enabled = true;
     this._lpIdx = idx;
   }
 
@@ -1284,7 +1290,8 @@ class MainScene extends Phaser.Scene {
     this._tipTxt.setAlpha(0);
     this._tipRemoveBg.setAlpha(0);
     this._tipRemoveTxt.setAlpha(0);
-    this._tipRemoveBounds = null;
+    this._tipOverlay.setVisible(false); this._tipOverlay.input.enabled = false;
+    this._tipRemoveHit.setVisible(false); this._tipRemoveHit.input.enabled = false;
     this._lpIdx = -1;
   }
 }
