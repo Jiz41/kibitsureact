@@ -269,7 +269,7 @@ function fireCharm(id, scene) {
     g.x = sx; g.y = sy;
     const mistOnis = scene.onis.getChildren().filter(o => o.active);
     const mistTarget = mistOnis.length ? mistOnis.reduce((a, b) => a.x < b.x ? a : b) : null;
-    const mistTx = mistTarget ? mistTarget.x : W / 2;
+    const mistTx = mistTarget ? Math.min(mistTarget.x, 195) : 195;
     const mistTy = mistTarget ? mistTarget.y : sy;
     let mistActive = true;
     scene.tweens.add({

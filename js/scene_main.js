@@ -1550,7 +1550,7 @@ class MainScene extends Phaser.Scene {
       for (let i = 0; i < 3; i++) {
         if (Math.abs(y - (confBaseY + i * 55)) < 24) {
           if (i === 0) {
-            this.scene.physics.pause?.();
+            this.physics.pause();
             this._stopBossTimers();
             this._saveGame();
             this.scene.start('TitleScene');
