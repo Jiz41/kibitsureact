@@ -217,9 +217,9 @@ class TitleScene extends Phaser.Scene {
 
   _termConvert(rows, maxRows) {
     const stages = [
-      'PRODUCER: KAYOUTOUIDOU',
-      'PRODUCER: かようとういどう',
-      'PRODUCER: 華耀東夷堂',
+      'FORGED BY: KAYOUTOUIDOU',
+      'FORGED BY: かようとういどう',
+      '制作：華耀東夷堂',
     ];
     let idx = 0;
     const show = () => {
