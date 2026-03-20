@@ -5,15 +5,15 @@ class MainScene extends Phaser.Scene {
   constructor() { super({ key: 'MainScene' }); }
 
   preload() {
-    this.load.image('kibitsu',     'kibitsu.png');
-    this.load.image('oni_small',   'oni_small.png');
-    this.load.image('oni_mid',     'oni_mid.png');
-    this.load.image('oni_large',   'oni_large.png');
-    this.load.image('oni_ura',     'oni_ura.png');
-    this.load.image('oni_ibaraki', 'oni_ibaraki.png');
-    this.load.image('oni_shuten',  'oni_shuten.png');
-    this.load.image('oni_otake',   'oni_otake.png');
-    this.load.image('oni_soraki',  'oni_soraki.png');
+    this.load.image('kibitsu',      'kibitsu.png');
+    this.load.image('oni-small',    'oni-small.png');
+    this.load.image('oni-mid',      'oni-mid.png');
+    this.load.image('oni-large',    'oni-large.png');
+    this.load.image('oni-ura',      'oni-ura.png');
+    this.load.image('oni-ibaraki',  'oni-ibaraki.png');
+    this.load.image('oni-shuten',   'oni-shuten.png');
+    this.load.image('oni-otake',    'oni-otake.png');
+    this.load.image('oni-soranaki', 'oni-soranaki.png');
   }
 
   create() {
@@ -738,7 +738,7 @@ class MainScene extends Phaser.Scene {
     const dmg   = named ? NM_DMG : ONI_DMG;
     const bw    = named ? 52 : ONI_BW;
     const name  = named ? '中鬼' : '小鬼';
-    const imgKey = named ? 'oni_mid' : 'oni_small';
+    const imgKey = named ? 'oni-mid' : 'oni-small';
     const attrPool = ['fire', 'water', 'earth', 'wind'];
     const attrChance = Math.min(1, (this.wave - 2) * 0.25);
     const attr = (this.wave >= 3 && Math.random() < attrChance) ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
@@ -749,7 +749,7 @@ class MainScene extends Phaser.Scene {
   _spawnOgre() {
     // WAVE8-9：大鬼（isBoss=false）+ 小鬼の無限湧き、全滅でWAVEクリア
     const sy = Phaser.Math.Between(40, BATTLE_H - 40);
-    this._makeOni(W, sy, 52, 78, 0x441100, 0xff8833, '【大鬼】', '13px', '#ffcc88', OGRE_HP, OGRE_SPD, OGRE_DMG, 66, 60, false, 'oni_large', 'none');
+    this._makeOni(W, sy, 52, 78, 0x441100, 0xff8833, '【大鬼】', '13px', '#ffcc88', OGRE_HP, OGRE_SPD, OGRE_DMG, 66, 60, false, 'oni-large', 'none');
     const ogre = this.onis.getLast(true);
     ogre.isOgre = true;
     this._bossSpawnTimerKobuki = this.time.addEvent({
@@ -770,11 +770,13 @@ class MainScene extends Phaser.Scene {
     }
     const chapIdx = Math.min(this.chapter - 1, BOSS_NAMES_BY_CHAPTER.length - 1);
     const name = BOSS_NAMES_BY_CHAPTER[chapIdx];
-    const BOSS_IMGS = ['oni_ura', 'oni_ibaraki', 'oni_shuten', 'oni_otake', 'oni_soraki'];
-    const bossImg = BOSS_IMGS[chapIdx] || 'oni_ura';
+    const BOSS_IMGS = ['oni-ura', 'oni-ibaraki', 'oni-shuten', 'oni-otake', 'oni-soranaki'];
+    const bossImg = BOSS_IMGS[chapIdx] || 'oni-ura';
     const attrPool = ['fire', 'water', 'earth', 'wind'];
     const attr = this.wave >= 2 ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
-    const sy = Phaser.Math.Between(60, BATTLE_H - 60);
+    // 脚が戦闘エリア下端(y=330)に来るようanchor中央を逆算
+    const bossRatio = chapIdx === 4 ? 0.85 : 0.75;
+    const sy = BATTLE_H - (BATTLE_H * bossRatio) / 2;
     this._makeOni(W, sy, 56, 84, 0x220044, 0xff33ff, `【${name}】`, '13px', '#ff88ff', BOSS_HP, BOSS_SPD, BOSS_DMG, 72, EXP_B, true, bossImg, attr);
 
     // ボス出現と同時に無限湧き：小鬼1500ms・中鬼4000ms、同時上限8体
@@ -800,7 +802,7 @@ class MainScene extends Phaser.Scene {
     const dmg = named ? NM_DMG : ONI_DMG;
     const bw  = named ? 52 : ONI_BW;
     const nm  = named ? '中鬼' : '小鬼';
-    const imgKey = named ? 'oni_mid' : 'oni_small';
+    const imgKey = named ? 'oni-mid' : 'oni-small';
     const attrPool = ['fire', 'water', 'earth', 'wind'];
     const attrChance = Math.min(1, (this.wave - 2) * 0.25);
     const attr = (this.wave >= 3 && Math.random() < attrChance) ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
@@ -815,8 +817,8 @@ class MainScene extends Phaser.Scene {
 
   _makeOni(ox, oy, ow, oh, col, stk, name, fs, fc, hp, spd, dmg, bw, exp, isBoss, imgKey, attr = 'none') {
     // スプライトサイズ (BATTLE_H 比)
-    const ONI_RATIO = { oni_small:0.18, oni_mid:0.22, oni_large:0.30,
-      oni_ura:0.75, oni_ibaraki:0.75, oni_shuten:0.75, oni_otake:0.75, oni_soraki:0.85 };
+    const ONI_RATIO = { 'oni-small':0.18, 'oni-mid':0.22, 'oni-large':0.30,
+      'oni-ura':0.75, 'oni-ibaraki':0.75, 'oni-shuten':0.75, 'oni-otake':0.75, 'oni-soranaki':0.85 };
     const ratio  = ONI_RATIO[imgKey] || 0.18;
     const sprH   = BATTLE_H * ratio;
     // oy はスプライト中心座標として渡す
