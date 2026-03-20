@@ -105,12 +105,12 @@ class TitleScene extends Phaser.Scene {
       fontSize: '12px', color: '#00ff00', fontFamily: 'monospace',
       lineSpacing: 4, wordWrap: { width: W - 32 }
     }).setDepth(21);
-    this._termTypeLine = this.add.text(16, H - 90, '', {
+    this._termTypeLine = this.add.text(16, 258, '', {
       fontSize: '14px', color: '#00ff00', fontFamily: 'monospace'
     }).setDepth(21).setAlpha(0);
-    this._termCredit = this.add.text(16, H - 90, '', {
-      fontSize: '14px', color: '#00ff00', fontFamily: 'monospace'
-    }).setDepth(21).setAlpha(0);
+    this._termCredit = this.add.text(W / 2, 280, '', {
+      fontSize: '42px', color: '#00ff00', fontFamily: 'monospace'
+    }).setOrigin(0.5).setDepth(21).setAlpha(0);
     this._termPush = this.add.text(W/2, H - 48, 'PUSH', {
       fontSize: '18px', color: '#00ff00', fontFamily: 'monospace',
       shadow: { offsetX: 0, offsetY: 0, color: '#00ff00', blur: 8, fill: true }
@@ -174,10 +174,10 @@ class TitleScene extends Phaser.Scene {
       if (rows.length > 18) rows.shift();
       this._termScroll.setText(rows.join('\n'));
     };
-    const scrollTimer = this.time.addEvent({ delay: 90, repeat: lines.length - 1, callback: addLine });
+    const scrollTimer = this.time.addEvent({ delay: 50, repeat: lines.length - 1, callback: addLine });
 
-    // 3.5秒後：スクロール停止→タイプライター開始
-    this.time.delayedCall(3500, () => {
+    // 1秒後：スクロール停止→タイプライター開始
+    this.time.delayedCall(1000, () => {
       scrollTimer.remove(false);
       this._termTypewriter();
     });
@@ -188,14 +188,14 @@ class TitleScene extends Phaser.Scene {
     this._termTypeLine.setAlpha(1);
     let i = 0;
     this.time.addEvent({
-      delay: 100, repeat: target.length - 1,
+      delay: 60, repeat: target.length - 1,
       callback: () => {
         i++;
         this._termTypeLine.setText(target.slice(0, i));
       }
     });
-    // タイプ完了後1.2秒で変換エフェクト
-    this.time.delayedCall(100 * target.length + 1200, () => this._termConvert());
+    // タイプ完了後0.2秒で変換エフェクト
+    this.time.delayedCall(60 * target.length + 200, () => this._termConvert());
   }
 
   _termConvert() {
@@ -203,7 +203,7 @@ class TitleScene extends Phaser.Scene {
     const finalText = '制作：華耀東夷堂';
     let count = 0;
     this.time.addEvent({
-      delay: 120, repeat: 5,
+      delay: 80, repeat: 3,
       callback: () => {
         count++;
         if (count % 2 === 0) {
@@ -211,10 +211,10 @@ class TitleScene extends Phaser.Scene {
         } else {
           this._termTypeLine.setText('##########');
         }
-        if (count >= 5) {
+        if (count >= 3) {
           this._termTypeLine.setAlpha(0);
           this._termCredit.setText(finalText).setAlpha(1);
-          this.time.delayedCall(800, () => this._termShowPush());
+          this.time.delayedCall(300, () => this._termShowPush());
         }
       }
     });
