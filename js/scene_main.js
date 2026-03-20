@@ -714,16 +714,49 @@ class MainScene extends Phaser.Scene {
   }
 
   _ultKaguya(ult) {
-    // 白い細長い衝撃波（幅8px・長さ80px）が正面に高速で飛ぶ
     const sx = this._kbSX, sy = this._kbSY;
+
+    const drawCrescent = (g) => {
+      // グロー層（水色）
+      g.lineStyle(14, 0xAADDFF, 0.35);
+      g.beginPath(); g.arc(0, 0, 40, -Math.PI * 0.75, Math.PI * 0.35, false); g.strokePath();
+      // 本体（白）
+      g.lineStyle(9, 0xFFFFFF, 0.95);
+      g.beginPath(); g.arc(0, 0, 40, -Math.PI * 0.75, Math.PI * 0.35, false); g.strokePath();
+    };
+
+    // 残像3個（stagger追従）
+    for (let i = 1; i <= 3; i++) {
+      this.time.delayedCall(i * 38, () => {
+        const ghost = this.add.graphics().setDepth(7);
+        drawCrescent(ghost);
+        ghost.x = sx; ghost.y = sy;
+        ghost.scaleX = 0;
+        this.tweens.add({
+          targets: ghost, scaleX: 1, duration: 60, ease: 'Power1',
+          onComplete: () => {
+            this.tweens.add({ targets: ghost, x: W + 100, rotation: 0.3, alpha: 0, duration: 280, ease: 'Power3',
+              onComplete: () => ghost.destroy() });
+          }
+        });
+      });
+    }
+
+    // 本体
     const g = this.add.graphics().setDepth(8);
-    g.fillStyle(0xffffff, 0.9); g.fillRect(0, -4, 80, 8);
-    g.x = sx; g.y = sy;
-    this.tweens.add({ targets: g, x: W + 100, duration: 280, ease: 'Power3',
-      onComplete: () => g.destroy() });
-    // 射線上（y±50）の全敵を貫通
+    drawCrescent(g);
+    g.x = sx; g.y = sy; g.scaleX = 0;
+    this.tweens.add({
+      targets: g, scaleX: 1, duration: 70, ease: 'Back.Out',
+      onComplete: () => {
+        this.tweens.add({ targets: g, x: W + 100, rotation: 0.3, duration: 280, ease: 'Power3',
+          onComplete: () => g.destroy() });
+      }
+    });
+
+    // 射線上（y±60）の全敵を貫通
     for (const oni of this.onis.getChildren().filter(o => o.active)) {
-      if (Math.abs(oni.y - sy) < 50) this._oniDmg(oni, ult.dmg, 'wind');
+      if (Math.abs(oni.y - sy) < 60) this._oniDmg(oni, ult.dmg, 'wind');
     }
   }
 
