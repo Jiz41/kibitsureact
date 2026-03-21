@@ -217,7 +217,7 @@ class MainScene extends Phaser.Scene {
   /* ── BG ─────────────────────────────────── */
   _bg() {
     this.add.rectangle(W/2, BATTLE_H/2, W, BATTLE_H, 0x1a2e20).setDepth(0);
-    this.add.rectangle(W/2, BATTLE_H - 16, W, 32, 0x3a2910).setDepth(0);
+    this.add.rectangle(W/2, 215, W, 230, 0x3a2910).setDepth(0); // 地面：Y=100〜330
     this.add.rectangle(W/2, 6, W, 12, 0x223344).setDepth(0);
     this.add.rectangle(W/2, UI_Y0 + UI_H/2, W, UI_H, 0x0c100c).setDepth(0);
     this.add.rectangle(W/2, UI_Y0 + 1, W, 3, 0x44664a).setDepth(0);
@@ -964,13 +964,13 @@ class MainScene extends Phaser.Scene {
     const attrPool = ['fire', 'water', 'earth', 'wind'];
     const attrChance = Math.min(1, (this.wave - 2) * 0.25);
     const attr = (this.wave >= 3 && Math.random() < attrChance) ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
-    const sy = Phaser.Math.Between(40, BATTLE_H - 40);
+    const sy = Phaser.Math.Between(100, 310);
     this._makeOni(W, sy, named ? 48 : ONI_W, named ? 64 : ONI_H, col, stk, name, named ? '13px' : '20px', named ? '#ddaaff' : '#ffbbbb', hp, spd, dmg, bw, named ? EXP_N : EXP_G, false, imgKey, attr);
   }
 
   _spawnOgre() {
     // WAVE8-9：大鬼（isBoss=false）+ 小鬼の無限湧き、全滅でWAVEクリア
-    const sy = Phaser.Math.Between(40, BATTLE_H - 40);
+    const sy = Phaser.Math.Between(100, 310);
     this._makeOni(W, sy, 52, 78, 0x441100, 0xff8833, '【大鬼】', '13px', '#ffcc88', OGRE_HP, OGRE_SPD, OGRE_DMG, 66, 60, false, 'oni-large', 'none');
     const ogre = this.onis.getLast(true);
     ogre.isOgre = true;
@@ -1012,9 +1012,7 @@ class MainScene extends Phaser.Scene {
     const bossImg = BOSS_IMGS[chapIdx] || 'oni-ura';
     const attrPool = ['fire', 'water', 'earth', 'wind'];
     const attr = this.wave >= 2 ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
-    // 脚が戦闘エリア下端(y=330)に来るようanchor中央を逆算
-    const bossRatio = chapIdx === 4 ? 0.85 : 0.75;
-    const sy = BATTLE_H - (BATTLE_H * bossRatio) / 2;
+    const sy = Phaser.Math.Between(100, 310);
     this._makeOni(W, sy, 56, 84, 0x220044, 0xff33ff, `【${name}】`, '13px', '#ff88ff', BOSS_HP, BOSS_SPD, BOSS_DMG, 72, EXP_B, true, bossImg, attr);
     this.onis.getLast(true).isNamed = true;
 
@@ -1045,7 +1043,7 @@ class MainScene extends Phaser.Scene {
     const attrPool = ['fire', 'water', 'earth', 'wind'];
     const attrChance = Math.min(1, (this.wave - 2) * 0.25);
     const attr = (this.wave >= 3 && Math.random() < attrChance) ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
-    const sy = Phaser.Math.Between(40, BATTLE_H - 40);
+    const sy = Phaser.Math.Between(100, 310);
     this._makeOni(W, sy, named ? 48 : ONI_W, named ? 64 : ONI_H, col, stk, nm, named ? '13px' : '20px', named ? '#ddaaff' : '#ffbbbb', hp, spd, dmg, bw, named ? EXP_N : EXP_G, false, imgKey, attr);
   }
 
