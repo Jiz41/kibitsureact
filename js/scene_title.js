@@ -299,6 +299,7 @@ class TitleScene extends Phaser.Scene {
       });
       if (missing.length === 0) { onComplete(); return; }
       missing.forEach(k => {
+        this.textures.remove(k);
         if (k === 'op_bg')      this.load.image('op_bg',      'op.jpg');
         if (k === 'title_logo') this.load.image('title_logo', 'title.png');
       });
