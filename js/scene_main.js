@@ -77,6 +77,11 @@ class MainScene extends Phaser.Scene {
     this.bgmOn     = this.bgmVol > 0;
     this.seVol     = loadOpts().seVol;
     this.bgmCurrent = null;
+    this.soranaki        = null;
+    this._sorPeaceMs     = 0;
+    this._sorClearDone   = false;
+    this._sorShakeTimer  = null;
+    this._sorGlitchTimer = null;
     this.selectedUltId = this.selectedUltId || 'kaguya';
     this._ultLpTimer   = null;
     this._ultMenuVis   = false;
@@ -157,6 +162,12 @@ class MainScene extends Phaser.Scene {
     // oni AI
     for (const oni of [...this.onis.getChildren()]) {
       if (!oni.active) continue;
+      // 空無童子：専用移動のみ（攻撃・ノックバック等すべてスキップ）
+      if (oni.isSoranaki) {
+        oni._baseX -= oni.spd * (dt / 1000);
+        this._oniSync(oni);
+        continue;
+      }
       // stun countdown
       if (oni.stunTimer > 0) oni.stunTimer = Math.max(0, oni.stunTimer - dt);
       // knockback movement
@@ -206,6 +217,12 @@ class MainScene extends Phaser.Scene {
           b.destroy(); this._oniDmg(oni, b.dmg || BUL_DMG, b.attr || 'none'); break;
         }
       }
+    }
+
+    // 空無童子：平和タイマー加算
+    if (this.soranaki?.active && !this._sorClearDone) {
+      this._sorPeaceMs += dt;
+      if (this._sorPeaceMs >= 180000) this._sorClear();
     }
 
     // wave clear（bossDeathSequenceによる二重発火防止）
@@ -681,6 +698,7 @@ class MainScene extends Phaser.Scene {
   _doSlash() {
     const list = this.onis.getChildren().filter(o => o.active);
     if (!list.length) return;
+    this._sorActionTaken();
     const t = list.reduce((a, b) => a.x < b.x ? a : b);
     const dmg = Math.round(this.slashDmg * this.combo);
     this._oniDmg(t, dmg);
@@ -722,6 +740,7 @@ class MainScene extends Phaser.Scene {
 
   /* ── Ultimate ───────────────────────────── */
   _ultFire() {
+    this._sorActionTaken();
     this.gauge = 0; this._gaugeUp();
     const ult = ULTIMATE_DATA.find(u => u.id === this.selectedUltId);
     if (!ult) return;
@@ -855,6 +874,7 @@ class MainScene extends Phaser.Scene {
   _useCharm(idx) {
     const c = this.slotCharms[idx];
     this.charmTimers[idx] = 0; this._cellUp(idx);
+    this._sorActionTaken();
     fireCharm(c.id, this);
   }
 
@@ -998,6 +1018,9 @@ class MainScene extends Phaser.Scene {
         this._dlgShow(chap.boss_scene, null);
       }
     }
+    // 五章：空無童子（特殊ボス）
+    if (this.chapter === 5) { this._spawnSoranaki(); return; }
+
     const chapIdx = Math.min(this.chapter - 1, BOSS_NAMES_BY_CHAPTER.length - 1);
     const name = BOSS_NAMES_BY_CHAPTER[chapIdx];
     const BOSS_IMGS = ['oni-ura', 'oni-ibaraki', 'oni-shuten', 'oni-otake', 'oni-soranaki'];
@@ -1039,6 +1062,110 @@ class MainScene extends Phaser.Scene {
     const attr = (this.wave >= 3 && Math.random() < attrChance) ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
     const sy = Phaser.Math.Between(40, BATTLE_H - 40);
     this._makeOni(W, sy, named ? 48 : ONI_W, named ? 64 : ONI_H, col, stk, nm, named ? '13px' : '20px', named ? '#ddaaff' : '#ffbbbb', hp, spd, dmg, bw, named ? EXP_N : EXP_G, false, imgKey, attr);
+  }
+
+  /* ── 空無童子 ───────────────────────────── */
+  _spawnSoranaki() {
+    // 登場速度：180秒で x=W から x=65 まで移動
+    const sorSpd = (W - 65) / 180;
+    const sy = BATTLE_H - (BATTLE_H * 0.85) / 2;
+    this._makeOni(W, sy, 56, 84, 0x000000, 0x9966cc, '【空無童子】', '13px', '#ccccff',
+      Number.MAX_SAFE_INTEGER, sorSpd, 0, 72, EXP_B, true, 'oni-soranaki', 'none');
+    this.soranaki = this.onis.getLast(true);
+    this.soranaki.isNamed    = true;
+    this.soranaki.isSoranaki = true;
+    this.soranaki._baseX     = W;
+
+    // 震えタイマー（60ms間隔）
+    this._sorShakeTimer = this.time.addEvent({
+      delay: 60, loop: true,
+      callback: () => {
+        if (!this.soranaki?.active || this._sorClearDone) return;
+        const progress  = Math.min(1, this._sorPeaceMs / 180000);
+        const maxOff    = 8 * progress;
+        this.soranaki.x = this.soranaki._baseX + (Math.random() - 0.5) * 2 * maxOff;
+      }
+    });
+
+    // グリッチタイマー（30秒間隔）
+    this._sorGlitchTimer = this.time.addEvent({
+      delay: 30000, loop: true,
+      callback: () => {
+        if (!this.soranaki?.active || this._sorClearDone) return;
+        this._sorGlitch();
+      }
+    });
+  }
+
+  _sorActionTaken() {
+    if (this.soranaki?.active && !this._sorClearDone) this._sorPeaceMs = 0;
+  }
+
+  _sorGlitch() {
+    if (!this.soranaki?.active) return;
+
+    // ① 短冊ノイズ（5〜8本、100ms）
+    const noise = this.add.graphics().setDepth(52);
+    for (let i = 0, n = Phaser.Math.Between(5, 8); i < n; i++) {
+      noise.fillStyle(0xffffff, Phaser.Math.FloatBetween(0.08, 0.28));
+      noise.fillRect(
+        Phaser.Math.Between(0, W),
+        Phaser.Math.Between(0, BATTLE_H - 4),
+        Phaser.Math.Between(20, W),
+        Phaser.Math.Between(2, 4)
+      );
+    }
+    this.time.delayedCall(100, () => { if (noise.active) noise.destroy(); });
+
+    // ② 色収差オーバーレイ（150ms）
+    const aberr = this.add.graphics().setDepth(51);
+    const sh = Phaser.Math.Between(1, 2);
+    aberr.fillStyle(0xff2200, 0.07); aberr.fillRect(sh,  0, W, BATTLE_H);
+    aberr.fillStyle(0x0033ff, 0.07); aberr.fillRect(-sh, 0, W, BATTLE_H);
+    this.time.delayedCall(150, () => { if (aberr.active) aberr.destroy(); });
+
+    // ③ スキャンラインずれ：戦闘エリアをRenderTextureに焼き付けて横ずれ（200ms）
+    const rt = this.add.renderTexture(0, 0, W, BATTLE_H).setDepth(50).setAlpha(0.7);
+    this.children.list
+      .filter(o => o !== rt && o !== noise && o !== aberr &&
+                   o.active && o.visible && o.depth < 45 &&
+                   typeof o.y === 'number' && o.y < BATTLE_H + 80)
+      .forEach(o => rt.draw(o));
+    const ox = [
+      Phaser.Math.Between(-15, 15),
+      Phaser.Math.Between(-15, 15),
+      Phaser.Math.Between(-8,  8),
+    ];
+    rt.x = ox[0];
+    this.time.delayedCall(67,  () => { if (rt.active) rt.x = ox[1]; });
+    this.time.delayedCall(134, () => { if (rt.active) rt.x = ox[2]; });
+    this.time.delayedCall(200, () => { if (rt.active) rt.destroy(); });
+  }
+
+  _sorClear() {
+    if (this._sorClearDone) return;
+    this._sorClearDone = true;
+    this.waveDone = true;
+
+    if (this._sorShakeTimer)  { this._sorShakeTimer.remove(false);  this._sorShakeTimer  = null; }
+    if (this._sorGlitchTimer) { this._sorGlitchTimer.remove(false); this._sorGlitchTimer = null; }
+
+    const s = this.soranaki;
+    const targets = [s];
+    if (s.lbl)     targets.push(s.lbl);
+    if (s.hpBg)    targets.push(s.hpBg);
+    if (s.hpFill)  targets.push(s.hpFill);
+    if (s.attrLbl) targets.push(s.attrLbl);
+
+    this.tweens.add({
+      targets, alpha: 0, duration: 2000,
+      onComplete: () => {
+        this._healOnWaveClear();
+        this._saveGame();
+        this._ov('WAVE CLEAR!', '#ffff44', `WAVE ${this.wave} 撃退成功！`);
+        this.time.delayedCall(1800, () => { this._ovHide(); this._bossScenarioFlow(); });
+      }
+    });
   }
 
   _stopBossTimers() {
@@ -1213,6 +1340,14 @@ class MainScene extends Phaser.Scene {
     if (!oni.active) return;
     const mult = attrMult(atkAttr, oni.attr || 'none');
     const dmg = Math.max(1, Math.round(rawDmg * mult));
+    // 空無童子：不死・ダメージ表示のみ・10%反射
+    if (oni.isSoranaki) {
+      this._dmgNum(oni.x, oni.y - oni.hSz / 2, dmg, '#ffffff');
+      const ref = Math.max(1, Math.round(dmg * 0.1));
+      this._dmgNum(this._kbSX, this._kbSY - 30, ref, '#ff4444');
+      this._kbDmg(ref);
+      return;
+    }
     oni.hp -= dmg;
     const r = Phaser.Math.Clamp(oni.hp / oni.maxHp, 0, 1);
     oni.hpFill.setDisplaySize(oni.bw * r, oni.barH);
