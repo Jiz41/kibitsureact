@@ -291,53 +291,47 @@ class TitleScene extends Phaser.Scene {
 
   /* ── OP演出 ─────────────────────────────── */
   _startOp() {
-    // テクスチャ消失ガード（MainSceneからの戻りでキャッシュが抜ける場合がある）
-    const needOp   = !this.textures.exists('op_bg');
-    const needLogo = !this.textures.exists('title_logo');
-    if (needOp || needLogo) {
-      if (needOp)   this.load.image('op_bg',      'op.jpg');
-      if (needLogo) this.load.image('title_logo', 'title.png');
-      this.load.once('complete', () => { this._startOp(); });
+    const loadIfMissing = (keys, onComplete) => {
+      const missing = keys.filter(k => !this.textures.exists(k));
+      if (missing.length === 0) { onComplete(); return; }
+      missing.forEach(k => {
+        if (k === 'op_bg')      this.load.image('op_bg',      'op.jpg');
+        if (k === 'title_logo') this.load.image('title_logo', 'title.png');
+      });
+      this.load.once('complete', onComplete);
       this.load.start();
-      return;
-    }
-    // テクスチャを再適用し、スケールを再計算
-    {
+    };
+    loadIfMissing(['op_bg', 'title_logo'], () => {
+      // テクスチャを再適用し、スケールを再計算
       const src = this.textures.get('op_bg').getSourceImage();
       this._opBaseScale = (src.width > 0 && src.height > 0)
-        ? Math.max(W / src.width, H / src.height)
-        : 1;
+        ? Math.max(W / src.width, H / src.height) : 1;
       this._opBg.setTexture('op_bg').setScale(this._opBaseScale);
-    }
-    this._opLogo.setTexture('title_logo');
-    if (this._opLogo.width > 0) {
-      this._opLogo.setScale((W * 0.75) / this._opLogo.width);
-    }
+      this._opLogo.setTexture('title_logo');
+      if (this._opLogo.width > 0) this._opLogo.setScale((W * 0.75) / this._opLogo.width);
 
-    this._phase      = 'op';
-    this._opZoomDone = false;
+      this._phase      = 'op';
+      this._opZoomDone = false;
 
-    // 足元アップ：coverスケールの1.6倍でズームイン、画像下端を画面底に合わせる
-    const zoomFactor = 1.6;
-    const startScale = this._opBaseScale * zoomFactor;
-    // 画像の自然サイズ × startScale = 表示高さ。下端をHに合わせるにはyを上方向にシフト
-    const startY = H - (this._opBg.height * startScale) / 2;
+      // 足元アップ：coverスケールの1.6倍でズームイン、画像下端を画面底に合わせる
+      const startScale = this._opBaseScale * 1.6;
+      const startY = H - (this._opBg.height * startScale) / 2;
+      this._opBg.setScale(startScale).setY(startY).setAlpha(1);
+      this._opLogoBg.clearMask().setAlpha(0);
+      this._opLogo.clearMask().setCrop().setAlpha(0);
+      this._opCreditTxt.setAlpha(0);
+      this._opTapLbl.setAlpha(0);
+      this._blinkStop();
 
-    this._opBg.setScale(startScale).setY(startY).setAlpha(1);
-    this._opLogoBg.clearMask().setAlpha(0);
-    this._opLogo.clearMask().setCrop().setAlpha(0);
-    this._opCreditTxt.setAlpha(0);
-    this._opTapLbl.setAlpha(0);
-    this._blinkStop();
-
-    // ズームアウトトゥイーン（3〜4秒）：coverスケールまで戻して全景表示
-    this._zoomTween = this.tweens.add({
-      targets:  this._opBg,
-      y:        H / 2,
-      scale:    this._opBaseScale,
-      duration: 4000,
-      ease:     'Sine.easeInOut',
-      onComplete: () => { this._zoomTween = null; this._opZoomComplete(); }
+      // ズームアウトトゥイーン（3〜4秒）：coverスケールまで戻して全景表示
+      this._zoomTween = this.tweens.add({
+        targets:  this._opBg,
+        y:        H / 2,
+        scale:    this._opBaseScale,
+        duration: 4000,
+        ease:     'Sine.easeInOut',
+        onComplete: () => { this._zoomTween = null; this._opZoomComplete(); }
+      });
     });
   }
 

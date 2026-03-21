@@ -234,7 +234,7 @@ class MainScene extends Phaser.Scene {
   /* ── Kibitsu ────────────────────────────── */
   _kb() {
     const h = BATTLE_H * 0.22;   // 72.6px
-    const kx = 65, ky = 280;     // 門の左柱寄り・地面上
+    const kx = 65, ky = 190;     // 門の左柱寄り・地面上
     this.kbSpr = this.add.image(kx, ky, 'kibitsu').setOrigin(0.5, 0.5).setDepth(3);
     const naturalH = this.kbSpr.height || 1;
     this.kbSpr.setDisplaySize(this.kbSpr.width * h / naturalH, h);
