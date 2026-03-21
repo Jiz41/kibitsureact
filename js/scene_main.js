@@ -21,6 +21,9 @@ class MainScene extends Phaser.Scene {
     this.load.image('oni-shuten',   'oni-shuten.png');
     this.load.image('oni-otake',    'oni-otake.png');
     this.load.image('oni-soranaki', 'oni-soranaki.png');
+    this.load.audio('bgm_battle', 'onisankochira.mp3');
+    this.load.audio('bgm_shurai', 'shurai.mp3');
+    this.load.audio('bgm_boss5',  'ushitoraMantra.mp3');
   }
 
   create() {
@@ -70,8 +73,9 @@ class MainScene extends Phaser.Scene {
     this._lpTimer  = null;
     this._lpActive = false;
     this.paused    = false;
-    this.bgmOn     = true;
+    this.bgmOn     = loadOpts().bgm !== false;
     this.seOn      = true;
+    this.bgmCurrent = null;
     this.selectedUltId = this.selectedUltId || 'kaguya';
     this._ultLpTimer   = null;
     this._ultMenuVis   = false;
@@ -93,6 +97,18 @@ class MainScene extends Phaser.Scene {
     this.input.on('pointerdown', p => { this._lpStart(p); this._tap(p); });
     this.input.on('pointerup',   p => this._lpEnd(p));
     this._hdrUp(); this._gridUp(); this._bagUp();
+
+    // OP曲フェードアウト
+    const _opBgm = this.sound.get('bgm_op');
+    if (_opBgm) {
+      this.tweens.add({ targets: _opBgm, volume: 0, duration: 800, onComplete: () => { _opBgm.stop(); _opBgm.destroy(); } });
+    }
+    // 通常戦闘BGM開始
+    if (this.bgmOn) {
+      this.bgmCurrent = this.sound.add('bgm_battle', { loop: true, volume: 0 });
+      this.bgmCurrent.play();
+      this.tweens.add({ targets: this.bgmCurrent, volume: 1, duration: 1000 });
+    }
 
     // OPENINGシーン：はじめから選択時のみ表示
     if (_initType === 'new' && SCENARIO && SCENARIO.opening) {
@@ -959,6 +975,19 @@ class MainScene extends Phaser.Scene {
   }
 
   _spawnBoss() {
+    // ボス登場BGM切り替え
+    if (this.bgmOn && this.bgmCurrent) {
+      const bossBgmKey = this.chapter === 5 ? 'bgm_boss5' : 'bgm_shurai';
+      const fadeMs     = this.chapter === 5 ? 1500 : 1000;
+      const prev = this.bgmCurrent;
+      this.bgmCurrent = null;
+      this.tweens.add({ targets: prev, volume: 0, duration: fadeMs, onComplete: () => {
+        prev.stop();
+        this.bgmCurrent = this.sound.add(bossBgmKey, { loop: true, volume: 0 });
+        this.bgmCurrent.play();
+        this.tweens.add({ targets: this.bgmCurrent, volume: 1, duration: fadeMs });
+      }});
+    }
     // 各章末WAVE（10・20・30・40・50）でボス登場台詞を発火
     if (this.wave % 10 === 0 && SCENARIO) {
       const chap = SCENARIO.chapters[this.chapter - 1];
@@ -1273,11 +1302,23 @@ class MainScene extends Phaser.Scene {
 
   _nextWave() {
     this._stopBossTimers();
+    const prevChapter = this.chapter;
     this.wave++;
     this.chapter = Math.ceil(this.wave / 10);
     this.spawned = this.defeated = this.spawnTimer = 0;
     this.waveDone = this.bossSpawned = false;
     this._gridUp();
+    // 章をまたいだとき → 通常戦闘BGMに戻す
+    if (this.bgmOn && this.bgmCurrent && this.chapter !== prevChapter) {
+      const prev = this.bgmCurrent;
+      this.bgmCurrent = null;
+      this.tweens.add({ targets: prev, volume: 0, duration: 800, onComplete: () => {
+        prev.stop();
+        this.bgmCurrent = this.sound.add('bgm_battle', { loop: true, volume: 0 });
+        this.bgmCurrent.play();
+        this.tweens.add({ targets: this.bgmCurrent, volume: 1, duration: 1000 });
+      }});
+    }
   }
 
   _gameOver() { this._stopBossTimers(); this.dead = true; deleteSave(); this._ov('GAME OVER', '#ff4444', 'タップしてリスタート'); }
@@ -1569,7 +1610,17 @@ class MainScene extends Phaser.Scene {
     for (let i = 0; i < 4; i++) {
       if (Math.abs(y - (baseY + i * 50)) < 22) {
         if (i === 0) { this._pauseClose(); }
-        else if (i === 1) { this.bgmOn = !this.bgmOn; this._pauseItems[1].setText(`BGM：${this.bgmOn ? 'ON' : 'OFF'}`); }
+        else if (i === 1) {
+          this.bgmOn = !this.bgmOn;
+          this._pauseItems[1].setText(`BGM：${this.bgmOn ? 'ON' : 'OFF'}`);
+          if (this.bgmOn) {
+            this.bgmCurrent = this.sound.add('bgm_battle', { loop: true, volume: 1 });
+            this.bgmCurrent.play();
+          } else if (this.bgmCurrent) {
+            this.bgmCurrent.stop();
+            this.bgmCurrent = null;
+          }
+        }
         else if (i === 2) { this.seOn  = !this.seOn;  this._pauseItems[2].setText(`SE：${this.seOn  ? 'ON' : 'OFF'}`); }
         else if (i === 3) {
           this._pauseConfVis = true;

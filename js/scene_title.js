@@ -7,7 +7,7 @@ class TitleScene extends Phaser.Scene {
   preload() {
     this.load.image('op_bg',      'op.jpg');
     this.load.image('title_logo', 'title.png');
-    this.load.audio('title_bgm',  'kibitsureact.mp3');
+    this.load.audio('bgm_op',     'kibitsureact.mp3');
     this.load.on('loaderror', (file) => {
       console.warn('load error:', file.key);
     });
@@ -18,8 +18,8 @@ class TitleScene extends Phaser.Scene {
     this._hasSave = !!loadGame();
     this._opZoomDone = false;
     this._zoomTween  = null;
-    this._bgm = this.cache.audio.has('title_bgm')
-      ? this.sound.add('title_bgm', { loop: true, volume: 0.7 })
+    this._bgm = this.cache.audio.has('bgm_op')
+      ? this.sound.add('bgm_op', { loop: true, volume: 0.7 })
       : null;
 
     /* ── OP背景（op.jpg） ── */
