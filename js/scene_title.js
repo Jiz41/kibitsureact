@@ -14,6 +14,7 @@ class TitleScene extends Phaser.Scene {
   }
 
   create() {
+    this.add.text(10, 10, 'CREATE', { fontSize: '20px', fill: '#ff0000' }).setDepth(99);
     this.sound.stopAll();
     this._opts    = loadOpts();
     this._hasSave = !!loadGame();
@@ -126,6 +127,7 @@ class TitleScene extends Phaser.Scene {
     this.input.on('pointermove', p => this._sliderMove(p));
     this.input.on('pointerup',   () => { this._dragging = null; });
     if (hasSeenTerminal) {
+      this.add.text(10, 40, 'SEEN:TRUE', { fontSize: '20px', fill: '#ff0000' }).setDepth(99);
       if (this._bgm && this._opts.bgmVol > 0) {
         this._bgm.setVolume(this._opts.bgmVol);
         this._bgm.play();
@@ -291,6 +293,7 @@ class TitleScene extends Phaser.Scene {
 
   /* ── OP演出 ─────────────────────────────── */
   _startOp() {
+    this.add.text(10, 70, 'START_OP', { fontSize: '20px', fill: '#ff0000' }).setDepth(99);
     const loadIfMissing = (keys, onComplete) => {
       const missing = keys.filter(k => {
         if (!this.textures.exists(k)) return true;
@@ -303,7 +306,7 @@ class TitleScene extends Phaser.Scene {
         if (k === 'op_bg')      this.load.image('op_bg',      'op.jpg');
         if (k === 'title_logo') this.load.image('title_logo', 'title.png');
       });
-      this.load.once('complete', onComplete);
+      this.load.once('complete', () => { this.add.text(10, 100, 'LOAD_DONE', { fontSize: '20px', fill: '#ff0000' }).setDepth(99); onComplete(); });
       this.load.start();
     };
     loadIfMissing(['op_bg', 'title_logo'], () => {
@@ -321,6 +324,7 @@ class TitleScene extends Phaser.Scene {
       // 足元アップ：coverスケールの1.6倍でズームイン、画像下端を画面底に合わせる
       const startScale = this._opBaseScale * 1.6;
       const startY = H - (this._opBg.height * startScale) / 2;
+      this.add.text(10, 130, 'OPBGx:'+this._opBg.x+' a:'+this._opBg.alpha, { fontSize: '20px', fill: '#ff0000' }).setDepth(99);
       this._opBg.setScale(startScale).setY(startY).setAlpha(1);
       this._opLogoBg.clearMask().setAlpha(0);
       this._opLogo.clearMask().setCrop().setAlpha(0);
