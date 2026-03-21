@@ -158,6 +158,7 @@ class TitleScene extends Phaser.Scene {
     this._termCursorTimer = null;
     [this._termBg, ...this._termPool, this._termTypeLine, this._termCredit, this._termPush]
       .forEach(o => o.setVisible(true));
+    this._termBg.setAlpha(1);
     this._termPool.forEach(o => o.setText('').setAlpha(0));
     this._termTypeLine.setAlpha(0);
     this._termCredit.setAlpha(0);
