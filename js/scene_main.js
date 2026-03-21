@@ -1168,10 +1168,10 @@ class MainScene extends Phaser.Scene {
 
     const body = this.add.image(ox, actualOy, imgKey).setOrigin(0.5, 0.5).setDepth(3);
     body.setDisplaySize(body.width * sprH / body.height, sprH);
-    const ow = body.displayWidth, oh = body.displayHeight;
+    const sprW = body.displayWidth, sprH2 = body.displayHeight;
     body.outlines = [[-2,0],[2,0],[0,-2],[0,2]].map(([dx, dy]) =>
       this.add.image(ox + dx, actualOy + dy, imgKey)
-        .setDisplaySize(ow, oh).setTint(0xffffff).setAlpha(0.8).setDepth(2.9)
+        .setDisplaySize(sprW, sprH2).setTint(0xffffff).setAlpha(0.8).setDepth(2.9)
     );
 
     const barY   = actualOy - sprH / 2 - 6;
