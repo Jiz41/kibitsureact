@@ -1,22 +1,31 @@
 name: Deploy Notification
 
 on:
+  push:
+    branches: [main]
   deployment_status:
 
 jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Notify Discord on deploy success
-        if: github.event.deployment_status.state == 'success'
+      - name: Notify Discord on push
+        if: github.event_name == 'push'
         run: |
           curl -X POST "https://discord.com/api/webhooks/1483328438327840829/tN91CbY625115qeGMFNb3m2EIlUYvkGTfqVb_WPp5xU5ptS1QpCUmcT90c4AtpcyipUY?thread_id=1483327852857524255" \
             -H "Content-Type: application/json" \
-            -d "{\"content\": \"🌐 デプロイ、終わったみてえだ。旦那、確認してくんな！\nhttps://jiz41.github.io/kibitsureact/\"}"
+            -d "{\"content\": \"📦 プッシュしやしたよ！：${{ github.repository }}\"}"
+
+      - name: Notify Discord on deploy success
+        if: github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success'
+        run: |
+          curl -X POST "https://discord.com/api/webhooks/1483328438327840829/tN91CbY625115qeGMFNb3m2EIlUYvkGTfqVb_WPp5xU5ptS1QpCUmcT90c4AtpcyipUY?thread_id=1483327852857524255" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\": \"🌐 デプロイ、終わったみてえだ。旦那、確認してくんな！：${{ github.repository }}\"}"
 
       - name: Notify Discord on deploy failure
-        if: github.event.deployment_status.state == 'failure'
+        if: github.event_name == 'deployment_status' && github.event.deployment_status.state == 'failure'
         run: |
           curl -X POST "https://discord.com/api/webhooks/1483328438327840829/tN91CbY625115qeGMFNb3m2EIlUYvkGTfqVb_WPp5xU5ptS1QpCUmcT90c4AtpcyipUY?thread_id=1483327852857524255" \
             -H "Content-Type: application/json" \
-            -d "{\"content\": \"⚠️ ありゃ？デプロイが失敗しちまってるみてえだ。一応確認してくんな！\nhttps://jiz41.github.io/kibitsureact/\"}"
+            -d "{\"content\": \"⚠️ ありゃ？デプロイが失敗しちまってるみてえだ。確認してくんな！：${{ github.repository }}\"}"
