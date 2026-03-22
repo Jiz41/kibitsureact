@@ -250,9 +250,10 @@ class MainScene extends Phaser.Scene {
 
   /* ── Header ─────────────────────────────── */
   _hdr() {
-    this.hpTxt   = this.add.text(14, UI_Y0 + 6, '', { fontSize:'13px', color:'#88aaff', fontFamily:'Arial' }).setDepth(5);
-    this.waveTxt = this.add.text(W/2, UI_Y0 + 14, 'WAVE 1', { fontSize:'21px', color:'#ddcc44', fontFamily:'serif', fontStyle:'bold' }).setOrigin(0.5).setDepth(5);
-    this.expTxt  = this.add.text(W - 14, UI_Y0 + 6, '', { fontSize:'13px', color:'#aaee88', fontFamily:'Arial' }).setOrigin(1, 0).setDepth(5);
+    this.hpTxt      = this.add.text(14, UI_Y0 + 6, '', { fontSize:'13px', color:'#88aaff', fontFamily:'Arial' }).setDepth(5);
+    this.waveTxt    = this.add.text(W/2, UI_Y0 + 14, 'WAVE 1', { fontSize:'21px', color:'#ddcc44', fontFamily:'serif', fontStyle:'bold' }).setOrigin(0.5).setDepth(5);
+    this.expTxt     = this.add.text(W - 14, UI_Y0 + 6, '', { fontSize:'13px', color:'#aaee88', fontFamily:'Arial' }).setOrigin(1, 0).setDepth(5);
+    this.eneCountTxt = this.add.text(W/2, UI_Y0 + 31, '', { fontSize:'10px', color:'#cc8866', fontFamily:'Arial' }).setOrigin(0.5, 0).setDepth(5);
   }
 
   /* ── Grid ───────────────────────────────── */
@@ -997,13 +998,38 @@ class MainScene extends Phaser.Scene {
         this.tweens.add({ targets: this.bgmCurrent, volume: this.bgmVol, duration: fadeMs });
       }});
     }
-    // 各章末WAVE（10・20・30・40・50）でボス登場台詞を発火
-    if (this.wave % 10 === 0 && SCENARIO) {
-      const chap = SCENARIO.chapters[this.chapter - 1];
-      if (chap && chap.boss_scene) {
-        this._dlgShow(chap.boss_scene, null);
+    // 暗転ロック演出 → 完了後にボス登場台詞＆実体スポーン
+    this._bossIntroLock(() => {
+      if (this.wave % 10 === 0 && SCENARIO) {
+        const chap = SCENARIO.chapters[this.chapter - 1];
+        if (chap && chap.boss_scene) this._dlgShow(chap.boss_scene, null);
       }
-    }
+      this._bossSpawnBody();
+    });
+  }
+
+  _bossIntroLock(onDone) {
+    const chapIdx  = Math.min(this.chapter - 1, BOSS_NAMES_BY_CHAPTER.length - 1);
+    const bossName = BOSS_NAMES_BY_CHAPTER[chapIdx];
+    this.dialogActive = true;
+    const overlay = this.add.rectangle(W/2, BATTLE_H/2, W, BATTLE_H, 0x000000, 0).setDepth(50);
+    const nameTxt = this.add.text(W/2, BATTLE_H/2, `【${bossName}】`, {
+      fontSize: '32px', color: '#ff88ff', fontFamily: 'serif', fontStyle: 'bold',
+      stroke: '#000', strokeThickness: 6,
+    }).setOrigin(0.5).setAlpha(0).setDepth(51);
+    this.tweens.add({ targets: overlay, alpha: 0.88, duration: 600, onComplete: () => {
+      this.tweens.add({ targets: nameTxt, alpha: 1, duration: 400 });
+      this.time.delayedCall(2000, () => {
+        this.tweens.add({ targets: [overlay, nameTxt], alpha: 0, duration: 500, onComplete: () => {
+          overlay.destroy(); nameTxt.destroy();
+          this.dialogActive = false;
+          if (onDone) onDone();
+        }});
+      });
+    }});
+  }
+
+  _bossSpawnBody() {
     // 五章：空無童子（特殊ボス）
     if (this.chapter === 5) { this._spawnSoranaki(); return; }
 
@@ -1017,22 +1043,22 @@ class MainScene extends Phaser.Scene {
     this._makeOni(W, sy, 56, 84, 0x220044, 0xff33ff, `【${name}】`, '13px', '#ff88ff', BOSS_HP, BOSS_SPD, BOSS_DMG, 72, EXP_B, true, bossImg, attr);
     this.onis.getLast(true).isNamed = true;
 
-    // ボス出現と同時に無限湧き：小鬼1500ms・中鬼4000ms、同時上限8体
+    // ボス出現と同時に無限湧き：小鬼1500ms・中鬼4000ms、同時上限8体（EXP0）
     this._bossSpawnTimerKobuki = this.time.addEvent({
       delay: 1500, loop: true,
       callback: () => {
-        if (!this.waveDone && this.onis.countActive(true) < 8) this._spawnBossGrunt(false);
+        if (!this.waveDone && this.onis.countActive(true) < 8) this._spawnBossGrunt(false, true);
       }
     });
     this._bossSpawnTimerNamed = this.time.addEvent({
       delay: 4000, loop: true,
       callback: () => {
-        if (!this.waveDone && this.onis.countActive(true) < 8) this._spawnBossGrunt(true);
+        if (!this.waveDone && this.onis.countActive(true) < 8) this._spawnBossGrunt(true, true);
       }
     });
   }
 
-  _spawnBossGrunt(named) {
+  _spawnBossGrunt(named, exp0 = false) {
     const hp  = named ? NM_HP : ONI_HP;
     const col = named ? 0x661199 : 0xaa1a1a;
     const stk = named ? 0xcc88ff : 0xff6644;
@@ -1045,7 +1071,8 @@ class MainScene extends Phaser.Scene {
     const attrChance = Math.min(1, (this.wave - 2) * 0.25);
     const attr = (this.wave >= 3 && Math.random() < attrChance) ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
     const sy = Phaser.Math.Between(160, 290);
-    this._makeOni(W, sy, named ? 48 : ONI_W, named ? 64 : ONI_H, col, stk, nm, named ? '13px' : '20px', named ? '#ddaaff' : '#ffbbbb', hp, spd, dmg, bw, named ? EXP_N : EXP_G, false, imgKey, attr);
+    const exp = exp0 ? 0 : (named ? EXP_N : EXP_G);
+    this._makeOni(W, sy, named ? 48 : ONI_W, named ? 64 : ONI_H, col, stk, nm, named ? '13px' : '20px', named ? '#ddaaff' : '#ffbbbb', hp, spd, dmg, bw, exp, false, imgKey, attr);
   }
 
   /* ── 空無童子 ───────────────────────────── */
@@ -1471,6 +1498,8 @@ class MainScene extends Phaser.Scene {
     this.hpTxt.setText(`HP: ${this.kbHP}/${this.kbHPMax}`);
     this.expTxt.setText(`EXP: ${this.totalExp}`);
     this.waveTxt.setText(`WAVE ${this.wave}`);
+    const wic = ((this.wave - 1) % 10) + 1;
+    this.eneCountTxt.setText(wic === 10 ? 'BOSS WAVE' : `残敵 ${this.onis.countActive(true)}`);
   }
 
   _gridUp() {
