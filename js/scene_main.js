@@ -14,19 +14,19 @@ class MainScene extends Phaser.Scene {
   constructor() { super({ key: 'MainScene' }); }
 
   preload() {
-    this.load.image('kibitsu',      'kibitsu.png');
-    this.load.image('oni-small',    'oni-small.png');
-    this.load.image('oni-mid',      'oni-mid.png');
-    this.load.image('oni-large',    'oni-large.png');
-    this.load.image('oni-ura',      'oni-ura.png');
-    this.load.image('oni-ibaraki',  'oni-ibaraki.png');
-    this.load.image('oni-shuten',   'oni-shuten.png');
-    this.load.image('oni-otake',    'oni-otake.png');
-    this.load.image('oni-soranaki', 'oni-soranaki.png');
-    this.load.image('battle_bg',    'back.png');
-    this.load.audio('bgm_battle', 'onisankochira.mp3');
-    this.load.audio('bgm_shurai', 'shurai.mp3');
-    this.load.audio('bgm_boss5',  'ushitoraMantra.mp3');
+    this.load.image('kibitsu',      'img/kibitsu.png');
+    this.load.image('oni-small',    'img/oni-small.png');
+    this.load.image('oni-mid',      'img/oni-mid.png');
+    this.load.image('oni-large',    'img/oni-large.png');
+    this.load.image('oni-ura',      'img/oni-ura.png');
+    this.load.image('oni-ibaraki',  'img/oni-ibaraki.png');
+    this.load.image('oni-shuten',   'img/oni-shuten.png');
+    this.load.image('oni-otake',    'img/oni-otake.png');
+    this.load.image('oni-soranaki', 'img/oni-soranaki.png');
+    this.load.image('battle_bg',    'img/back.png');
+    this.load.audio('bgm_battle', 'audio/onisankochira.mp3');
+    this.load.audio('bgm_shurai', 'audio/shurai.mp3');
+    this.load.audio('bgm_boss5',  'audio/ushitoraMantra.mp3');
   }
 
   create() {

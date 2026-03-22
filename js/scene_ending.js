@@ -21,7 +21,7 @@ class EndingScene extends Phaser.Scene {
   constructor() { super({ key: 'EndingScene' }); }
 
   preload() {
-    this.load.audio('bgm_warabeuta', 'warabeuta.mp3');
+    this.load.audio('bgm_warabeuta', 'audio/warabeuta.mp3');
   }
 
   create() {

@@ -5,9 +5,9 @@ class TitleScene extends Phaser.Scene {
   constructor() { super({ key: 'TitleScene' }); }
 
   preload() {
-    this.load.image('op_bg',      'op.jpg');
-    this.load.image('title_logo', 'title.png');
-    this.load.audio('bgm_op',     'kibitsureact.mp3');
+    this.load.image('op_bg',      'img/op.jpg');
+    this.load.image('title_logo', 'img/title.png');
+    this.load.audio('bgm_op',     'audio/kibitsureact.mp3');
     this.load.on('loaderror', (file) => {
       console.warn('load error:', file.key);
     });
@@ -302,8 +302,8 @@ class TitleScene extends Phaser.Scene {
       if (missing.length === 0) { onComplete(); return; }
       missing.forEach(k => {
         this.textures.remove(k);
-        if (k === 'op_bg')      this.load.image('op_bg',      'op.jpg');
-        if (k === 'title_logo') this.load.image('title_logo', 'title.png');
+        if (k === 'op_bg')      this.load.image('op_bg',      'img/op.jpg');
+        if (k === 'title_logo') this.load.image('title_logo', 'img/title.png');
       });
       this.load.once('complete', onComplete);
       this.load.start();
