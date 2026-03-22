@@ -43,7 +43,7 @@ class MainScene extends Phaser.Scene {
     const ldBg = this.add.rectangle(W/2, H/2, W, H, 0x000000).setDepth(LD);
 
     // 「開闢支度中」静止部分（右端をW/2に揃える）
-    this.add.text(W/2 - 1, H/2 - 2, '開闢支度中', {
+    const ldLabel = this.add.text(W/2 - 1, H/2 - 2, '開闢支度中', {
       fontSize: '22px', fontFamily: '"Yuji Syuku", serif', color: '#ffffff',
     }).setOrigin(1, 0.5).setDepth(LD + 1);
 
@@ -84,7 +84,7 @@ class MainScene extends Phaser.Scene {
         .setDepth(LD + 3);
     }
 
-    this._loadObjs = [ldBg, ldBarBg, ldBarFill, ldDots, ...ldOniOutlines, ldOni].filter(Boolean);
+    this._loadObjs = [ldBg, ldBarBg, ldBarFill, ldLabel, ldDots, ...ldOniOutlines, ldOni].filter(Boolean);
 
     // 進捗補間オブジェクト（tweenで滑らかに動かす）
     const progObj = { val: 0 };
