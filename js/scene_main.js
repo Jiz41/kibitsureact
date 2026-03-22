@@ -208,8 +208,9 @@ class MainScene extends Phaser.Scene {
       if (this._sorPeaceMs >= 180000) this._sorClear();
     }
 
-    // wave clear（bossDeathSequenceによる二重発火防止）
-    if (!this.waveDone && this.spawned >= ONI_WAVE && this.bossSpawned && this.onis.countActive(true) === 0)
+    // wave clear（bossDeathSequenceによる二重発火防止、WAVE10はボス撃破のみ）
+    const _wic = ((this.wave - 1) % 10) + 1;
+    if (!this.waveDone && this.spawned >= ONI_WAVE && this.bossSpawned && this.onis.countActive(true) === 0 && _wic !== 10)
       this._waveClear();
 
     this._hdrUp();
@@ -415,6 +416,7 @@ class MainScene extends Phaser.Scene {
   _tap(ptr) {
     const { x, y } = ptr;
     if (this._lpActive) return;
+    if (this._introLock) return;
     // デバッグボタン
     if (DEBUG) {
       if (x >= 4 && x <= 80 && y >= 3 && y <= 24) { this._dbgWaveSkip(); return; }
@@ -1014,6 +1016,7 @@ class MainScene extends Phaser.Scene {
       : '恐ろしい鬼の\n気配がする……';
 
     this.dialogActive = true;
+    this._introLock = true;
     const overlay = this.add.rectangle(W/2, BATTLE_H/2, W, BATTLE_H, 0x000000, 0).setDepth(50);
 
     const warnTxt = this.add.text(W/2, BATTLE_H/2 - 20, warnBody, {
@@ -1043,6 +1046,7 @@ class MainScene extends Phaser.Scene {
         flashTimer.remove(); shakeTimer.remove(); warnTxt.setX(W/2);
         this.tweens.add({ targets: [overlay, warnTxt], alpha: 0, duration: 500, onComplete: () => {
           overlay.destroy(); warnTxt.destroy();
+          this._introLock = false;
           this.dialogActive = false;
           if (onDone) onDone();
         }});
