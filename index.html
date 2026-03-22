@@ -6,6 +6,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <title>吉備津彦 — 鬼退治</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Yuji+Syuku&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
@@ -77,6 +80,7 @@ const KB_X = 72, KB_Y = 190, KB_W = 42, KB_H = 64;
 <script src="js/charms.js"></script>
 <script src="js/scene_title.js"></script>
 <script src="js/scene_main.js"></script>
+<script src="js/scene_ending.js"></script>
 
 <script>
 /* ── Phaser 起動 ────────────────────────────── */
@@ -89,7 +93,7 @@ fetch('scenario.json')
       width: W, height: H,
       resolution: window.devicePixelRatio || 1,
       backgroundColor: '#000000',
-      scene: [TitleScene, MainScene],
+      scene: [TitleScene, MainScene, EndingScene],
       scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH

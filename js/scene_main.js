@@ -1195,9 +1195,23 @@ class MainScene extends Phaser.Scene {
         this._healOnWaveClear();
         this._saveGame();
         this._ov('WAVE CLEAR!', '#ffff44', `WAVE ${this.wave} 撃退成功！`);
-        this.time.delayedCall(1800, () => { this._ovHide(); this._bossScenarioFlow(); });
+        this.time.delayedCall(1800, () => { this._ovHide(); this._endingFlow(); });
       }
     });
+  }
+
+  _endingFlow() {
+    if (!SCENARIO?.ending) { this.scene.start('EndingScene'); return; }
+    const ed = SCENARIO.ending;
+    const steps = [];
+    if (ed.monologue?.length)        steps.push(ed.monologue);
+    if (ed.momotaro?.length)         steps.push(ed.momotaro);
+    if (ed.ending_narration?.length) steps.push(ed.ending_narration);
+    const runNext = (i) => {
+      if (i >= steps.length) { this.scene.start('EndingScene'); return; }
+      this._dlgShow(steps[i], () => runNext(i + 1));
+    };
+    runNext(0);
   }
 
   _stopBossTimers() {
