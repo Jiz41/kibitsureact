@@ -1499,7 +1499,8 @@ class MainScene extends Phaser.Scene {
     this.expTxt.setText(`EXP: ${this.totalExp}`);
     this.waveTxt.setText(`WAVE ${this.wave}`);
     const wic = ((this.wave - 1) % 10) + 1;
-    this.eneCountTxt.setText(wic === 10 ? 'BOSS WAVE' : `${Math.max(0, ONI_WAVE - this.defeated)}/${ONI_WAVE}`);
+    const remaining = Math.max(0, ONI_WAVE - this.spawned) + this.onis.countActive(true);
+    this.eneCountTxt.setText(wic === 10 ? 'BOSS WAVE' : `${remaining}/${ONI_WAVE}`);
   }
 
   _gridUp() {
