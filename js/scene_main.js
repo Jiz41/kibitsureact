@@ -1011,19 +1011,51 @@ class MainScene extends Phaser.Scene {
   _bossIntroLock(onDone) {
     const chapIdx  = Math.min(this.chapter - 1, BOSS_NAMES_BY_CHAPTER.length - 1);
     const bossName = BOSS_NAMES_BY_CHAPTER[chapIdx];
+    const warnLine1 = this.chapter === 5 ? 'とてつもなく恐ろしい鬼の' : '恐ろしい鬼の';
+
     this.dialogActive = true;
     const overlay = this.add.rectangle(W/2, BATTLE_H/2, W, BATTLE_H, 0x000000, 0).setDepth(50);
+
+    const warnTxt = this.add.text(W/2, BATTLE_H/2 - 20, `${warnLine1}\n気配がする……`, {
+      fontSize: '22px', color: '#ff3333', fontFamily: 'serif', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 8, align: 'center', lineSpacing: 8,
+    }).setOrigin(0.5).setAlpha(0).setDepth(51);
+
     const nameTxt = this.add.text(W/2, BATTLE_H/2, `【${bossName}】`, {
       fontSize: '32px', color: '#ff88ff', fontFamily: 'serif', fontStyle: 'bold',
       stroke: '#000', strokeThickness: 6,
     }).setOrigin(0.5).setAlpha(0).setDepth(51);
-    this.tweens.add({ targets: overlay, alpha: 0.88, duration: 600, onComplete: () => {
-      this.tweens.add({ targets: nameTxt, alpha: 1, duration: 400 });
-      this.time.delayedCall(2000, () => {
-        this.tweens.add({ targets: [overlay, nameTxt], alpha: 0, duration: 500, onComplete: () => {
-          overlay.destroy(); nameTxt.destroy();
-          this.dialogActive = false;
-          if (onDone) onDone();
+
+    this.tweens.add({ targets: overlay, alpha: 0.88, duration: 500, onComplete: () => {
+      // 警告テキスト出現
+      this.tweens.add({ targets: warnTxt, alpha: 1, duration: 200 });
+
+      // 点滅：赤→黄を200ms交互
+      let flashRed = true;
+      const flashTimer = this.time.addEvent({
+        delay: 200, loop: true,
+        callback: () => { flashRed = !flashRed; warnTxt.setColor(flashRed ? '#ff3333' : '#ffcc00'); },
+      });
+
+      // 振動：80ms毎にランダムX揺れ
+      const shakeTimer = this.time.addEvent({
+        delay: 80, loop: true,
+        callback: () => { warnTxt.setX(W/2 + (Math.random() - 0.5) * 14); },
+      });
+
+      // 1500ms後：警告終了 → ボス名へ
+      this.time.delayedCall(1500, () => {
+        flashTimer.remove(); shakeTimer.remove(); warnTxt.setX(W/2);
+        this.tweens.add({ targets: warnTxt, alpha: 0, duration: 300, onComplete: () => {
+          warnTxt.destroy();
+          this.tweens.add({ targets: nameTxt, alpha: 1, duration: 400 });
+          this.time.delayedCall(1800, () => {
+            this.tweens.add({ targets: [overlay, nameTxt], alpha: 0, duration: 500, onComplete: () => {
+              overlay.destroy(); nameTxt.destroy();
+              this.dialogActive = false;
+              if (onDone) onDone();
+            }});
+          });
         }});
       });
     }});
