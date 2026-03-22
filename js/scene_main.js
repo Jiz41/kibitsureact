@@ -1117,8 +1117,13 @@ class MainScene extends Phaser.Scene {
     // 暗転ロック演出 → 完了後にボス登場台詞＆実体スポーン
     this._bossIntroLock(() => {
       if (this.wave % 10 === 0 && SCENARIO) {
-        const chap = SCENARIO.chapters[this.chapter - 1];
-        if (chap && chap.boss_scene) this._dlgShow(chap.boss_scene, null);
+        const boss_scene = this.chapter === 5
+          ? SCENARIO.ending?.soranaki
+          : SCENARIO.chapters[this.chapter - 1]?.boss_scene;
+        if (boss_scene?.length) {
+          this._dlgShow(boss_scene, () => this._bossSpawnBody());
+          return;
+        }
       }
       this._bossSpawnBody();
     });
