@@ -2077,13 +2077,13 @@ class MainScene extends Phaser.Scene {
         .setText(this._kinsokuWrap(line.text, W - 28, '18px serif'))
         .setAlpha(1);
     } else {
-      // ナレーション: 茶半透明背景・ラインなし・中央揃え斜体セピア
-      this._dlgBg.setFillStyle(0x2a1200).setAlpha(0.78);
+      // ナレーション: 黒背景・ラインなし・中央揃え斜体白文字
+      this._dlgBg.setFillStyle(0x000000).setAlpha(0.92);
       this._dlgLine.setAlpha(0);
       this._dlgSpeakerTxt.setAlpha(0);
       this._dlgBodyTxt
         .setX(W / 2).setY(BATTLE_H - 95).setOrigin(0.5, 0)
-        .setStyle({ fontSize: '18px', color: '#c8a87a', fontFamily: 'serif', fontStyle: 'italic', align: 'center', stroke: '#000', strokeThickness: 2 })
+        .setStyle({ fontSize: '18px', color: '#ffffff', fontFamily: 'serif', fontStyle: 'italic', align: 'center', stroke: '#000', strokeThickness: 2 })
         .setText(this._kinsokuWrap(line.text, W - 28, 'italic 18px serif'))
         .setAlpha(1);
     }
@@ -2213,7 +2213,7 @@ class MainScene extends Phaser.Scene {
     this._pauseOv = this.add.rectangle(W/2, BATTLE_H/2, W, BATTLE_H, 0x000000, 0.7).setDepth(35).setVisible(false);
     // 5項目を戦闘エリア中央に配置（50px間隔、中心 BATTLE_H/2=165）
     const baseY = BATTLE_H / 2 - 100;
-    const labels = ['再開', '音楽 ●ON', '効果音 ●ON', 'タイトルへ', '書紀ヲ読む'];
+    const labels = ['再開', '音楽 ●ON', '効果音 ●ON', '書紀を読む', 'タイトルへ'];
     this._pauseItems = labels.map((lbl, i) =>
       this.add.text(W/2, baseY + i * 50, lbl, {
         fontSize:'24px', color:'#ffffff', fontFamily:'serif',
@@ -2306,12 +2306,12 @@ class MainScene extends Phaser.Scene {
             .setStyle({ color: this.seVol > 0 ? '#ffffff' : '#888888', fontSize:'24px', fontFamily:'serif', stroke:'#000', strokeThickness:3 });
         }
         else if (i === 3) {
+          window.openTutorial?.();
+        }
+        else if (i === 4) {
           this._pauseConfVis = true;
           for (const t of this._pauseItems) t.setVisible(false);
           for (const t of this._pauseConfItems) t.setVisible(true);
-        }
-        else if (i === 4) {
-          window.openTutorial?.();
         }
         return;
       }
