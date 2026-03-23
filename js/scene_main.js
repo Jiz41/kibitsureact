@@ -1366,12 +1366,12 @@ class MainScene extends Phaser.Scene {
 
     // ホワイトアウト（0.2s）と漢数字フェードアウト（1500ms）を同時開始
     const wo = this.add.rectangle(W/2, BATTLE_H/2, W, BATTLE_H, 0xffffff, 1).setDepth(55);
-    this.tweens.add({ targets: wo, alpha: 0, duration: 200, onComplete: () => wo.destroy() });
+    this.tweens.add({ targets: wo, alpha: 0, duration: 300, onComplete: () => wo.destroy() });
 
     const txt = this.add.text(W/2, BATTLE_H/2, num, {
       fontSize: '120px', fontFamily: '"Yuji Syuku", serif', color: '#8b0000',
     }).setOrigin(0.5).setDepth(56);
-    this.tweens.add({ targets: txt, alpha: 0, duration: 1500, onComplete: () => txt.destroy() });
+    this.tweens.add({ targets: txt, alpha: 0, duration: 300, onComplete: () => txt.destroy() });
 
     // 壱（step=10）→ 2秒後にクライマックス演出
     if (step === 10) {
