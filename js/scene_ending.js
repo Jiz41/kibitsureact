@@ -45,9 +45,9 @@ class EndingScene extends Phaser.Scene {
 
     const addRole = (t) => {
       this._ctr.add(this.add.text(W/2, cy, t, {
-        fontSize: '12px', fontFamily: F, color: '#666666', align: 'center',
+        fontSize: '16px', fontFamily: F, color: '#ffffff', align: 'center',
       }).setOrigin(0.5, 0));
-      cy += 20;
+      cy += 24;
     };
     const addName = (t) => {
       this._ctr.add(this.add.text(W/2, cy, t, {
@@ -57,9 +57,21 @@ class EndingScene extends Phaser.Scene {
     };
     const addSong = (t) => {
       this._ctr.add(this.add.text(W/2, cy, t, {
-        fontSize: '13px', fontFamily: F, color: '#999999', align: 'center',
+        fontSize: '13px', fontFamily: F, color: '#ffffff', align: 'center',
       }).setOrigin(0.5, 0));
       cy += 23;
+    };
+    const addItem = (t) => {
+      this._ctr.add(this.add.text(W/2, cy, t, {
+        fontSize: '16px', fontFamily: F, color: '#ffffff', align: 'center',
+      }).setOrigin(0.5, 0));
+      cy += 26;
+    };
+    const addSub = (t) => {
+      this._ctr.add(this.add.text(W/2, cy, t, {
+        fontSize: '14px', fontFamily: F, color: '#ffffff', align: 'center',
+      }).setOrigin(0.5, 0));
+      cy += 22;
     };
     const gap     = (h) => { cy += h; };
     const imgMark = (spec) => {
@@ -67,25 +79,32 @@ class EndingScene extends Phaser.Scene {
     };
 
     /* ── クレジット本体 ───────────────────────── */
-    addRole('企画'); addName('Mushyn Reagan');                          gap(60);
-    addRole('指揮'); addName('Mushyn Reagan');                          gap(60);
-    addRole('脚本'); addName('Alfonso Rémy Beaumont / Mushyn Reagan');  gap(60);
-    addRole('意匠'); addName('Mushyn Reagan');                          gap(140);
+    addRole('企画'); addName('Mushyn Reagan');                gap(60);
+    addRole('指揮'); addName('Mushyn Reagan');                gap(60);
+    addRole('脚本');
+    addName('Alfonso Rémy Beaumont'); gap(14); addName('Mushyn Reagan');
+    gap(60);
+    addRole('意匠'); addName('Mushyn Reagan');                gap(140);
 
     imgMark({ type: 'slide_single', key: 'kibitsu', dir: 'left' });
     gap(140);
 
-    addRole('音楽'); addName('Mushyn Reagan'); gap(14);
-    addSong('咎満つ、地の獄より。　作曲：Mushyn Reagan');
-    addSong('門前祓候　作曲：Mushyn Reagan');
-    addSong('大禍刻　作曲：Mushyn Reagan');
-    addSong('艮真言　作曲：Mushyn Reagan');
-    addSong('めぐりうた　作詞・作曲：Mushyn Reagan');
+    addRole('楽曲構成・作詞'); addName('Mushyn Reagan');
+    addRole('楽曲制作');       addName('Suno AI');
+    gap(14);
+    addSong('咎満つ、地の獄より。');
+    addSong('門前祓候');
+    addSong('大禍刻');
+    addSong('艮真言');
+    addSong('めぐりうた');
     gap(60);
 
-    addRole('効果音'); addName('OtoLogic'); gap(140);
+    addRole('効果音');
+    addName('OtoLogic'); addName('効果音ラボ'); addName('maruya328');
+    gap(140);
 
-    imgMark({ type: 'slide_row', keys: ['oni-small', 'oni-mid', 'oni-large', 'oni-ura'] });
+    imgMark({ type: 'slide_row', keys: ['oni-small', 'oni-mid', 'oni-large', 'oni-ura'],
+              heights: [0.20, 0.26, 0.30, 0.42] });
     gap(140);
 
     addRole('指示立案'); addName('Alfonso Rémy Beaumont'); gap(60);
@@ -94,18 +113,39 @@ class EndingScene extends Phaser.Scene {
     imgMark({ type: 'slide_dual', keys: ['oni-ibaraki', 'oni-shuten'] });
     gap(140);
 
-    addRole('実装・仕込'); addName('Mushyn Reagan / 偽咲澤爻徒'); gap(60);
-    addRole('管理');       addName('偽咲澤爻徒');                  gap(60);
-    addRole('制作・発行'); addName('華耀東夷堂');                  gap(140);
+    addRole('実装・仕込');
+    addName('Mushyn Reagan'); gap(14); addName('偽咲澤爻徒');
+    gap(60);
+    addRole('管理');       addName('偽咲澤爻徒');  gap(60);
+    addRole('制作・発行'); addName('華耀東夷堂');   gap(140);
 
     imgMark({ type: 'fade_center', key: 'oni-otake' });
     gap(140);
 
     addRole('原案着想'); addName('芥川龍之介「桃太郎」'); gap(120);
 
+    // 薫陶物セクション
+    addItem('【薫陶物】'); gap(30);
+    addItem('― ゲーム ―');
+    addItem('DARK SOULS'); addItem('真・女神転生'); addItem('Vampire Survivors');
+    gap(40);
+    addItem('― 小説 ―');
+    addItem('魔界都市ブルース');     addSub('菊地秀行');   gap(24);
+    addItem('ドグラ・マグラ');       addSub('夢野久作');   gap(24);
+    addItem('ラーマーヤナ');         addSub('ヴァールミーキ');
+    gap(40);
+    addItem('― 漫画 ―');
+    addItem('グラップラー刃牙');     addSub('板垣恵介');   gap(24);
+    addItem('ジョジョの奇妙な冒険'); addSub('荒木飛呂彦'); gap(24);
+    addItem('HELLSING');             addSub('平野耕太');
+    gap(40);
+    addItem('― 音楽 ―');
+    addItem('COCK ROACH'); addItem('Gustav Mahler'); addItem('Cab Calloway');
+    gap(60);
+
     this._ctr.add(this.add.text(W/2, cy,
       '最後まで遊んでくれてありがとうございました。', {
-        fontSize: '16px', fontFamily: F, color: '#cccccc',
+        fontSize: '16px', fontFamily: F, color: '#ffffff',
         align: 'center', wordWrap: { width: W - 80 },
       }).setOrigin(0.5, 0));
     cy += 30;
@@ -265,7 +305,10 @@ class EndingScene extends Phaser.Scene {
 
     // ── 小鬼・中鬼・大鬼・温羅：右から中央へスライドイン → フェードアウト ──
     } else if (spec.type === 'slide_row') {
-      const imgs = spec.keys.map(k => makeImg(k, IMG_H4)).filter(Boolean);
+      const imgs = spec.keys.map((k, i) => {
+        const h = spec.heights ? Math.round(H * spec.heights[i]) : IMG_H4;
+        return makeImg(k, h);
+      }).filter(Boolean);
       if (!imgs.length) { this.time.delayedCall(IMG_ANIM_MS, onDone); return; }
       this._curImgObjs = imgs.flatMap(img => [...img._ol, img]);
       const cols = imgs.length;
