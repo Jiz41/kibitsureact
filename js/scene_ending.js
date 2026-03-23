@@ -232,7 +232,7 @@ class EndingScene extends Phaser.Scene {
       fontSize: '26px', fontFamily: F, color: '#8b0000', align: 'center',
     }).setOrigin(0.5).setAlpha(0).setDepth(15);
 
-    const t3 = this.add.text(W/2, midY + 56, 'がされました。', {
+    const t3 = this.add.text(W/2, midY + 56, 'が執行されました。', {
       fontSize: '20px', fontFamily: F, color: '#ffffff', align: 'center',
     }).setOrigin(0.5).setAlpha(0).setDepth(15);
 

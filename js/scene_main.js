@@ -1364,13 +1364,12 @@ class MainScene extends Phaser.Scene {
     const KANJI = ['拾','玖','捌','柒','陸','伍','肆','参','弐','壱'];
     const num = KANJI[step - 1];
 
-    // 戦闘エリア全体ホワイトアウト（alpha1→0・0.2s）
+    // ホワイトアウト（0.2s）と漢数字フェードアウト（1500ms）を同時開始
     const wo = this.add.rectangle(W/2, BATTLE_H/2, W, BATTLE_H, 0xffffff, 1).setDepth(55);
     this.tweens.add({ targets: wo, alpha: 0, duration: 200, onComplete: () => wo.destroy() });
 
-    // 旧字体漢数字（画面中央・フェードアウト1500ms）
     const txt = this.add.text(W/2, BATTLE_H/2, num, {
-      fontSize: '120px', fontFamily: '"Yuji Syuku", serif', color: '#000000',
+      fontSize: '120px', fontFamily: '"Yuji Syuku", serif', color: '#8b0000',
     }).setOrigin(0.5).setDepth(56);
     this.tweens.add({ targets: txt, alpha: 0, duration: 1500, onComplete: () => txt.destroy() });
 
