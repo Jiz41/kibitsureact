@@ -1942,6 +1942,36 @@ class MainScene extends Phaser.Scene {
   }
 
   /* ── Dialog box ─────────────────────────── */
+  _kinsokuWrap(text, maxPx, fontStr) {
+    // 行頭禁則: 句読点・閉括弧・長音等が行頭に来ないよう手動改行
+    const KINSOKU = new Set([
+      '。','、','，','．','・','：','；','？','！',
+      '）','〕','】','』','」','〉','》','…','ー',
+      'っ','ッ','ぁ','ァ','ぃ','ィ','ぅ','ゥ','ぇ','ェ','ぉ','ォ',
+      'ゃ','ャ','ゅ','ュ','ょ','ョ','ゎ','ヮ',
+    ]);
+    const ctx = document.createElement('canvas').getContext('2d');
+    ctx.font = fontStr;
+    const lines = [];
+    let cur = '', curW = 0;
+    for (const ch of text) {
+      if (ch === '\n') { lines.push(cur); cur = ''; curW = 0; continue; }
+      const cw = ctx.measureText(ch).width;
+      if (curW + cw > maxPx) {
+        if (KINSOKU.has(ch)) {
+          // 禁則文字: 前行に押し込んで改行
+          lines.push(cur + ch); cur = ''; curW = 0;
+        } else {
+          lines.push(cur); cur = ch; curW = cw;
+        }
+      } else {
+        cur += ch; curW += cw;
+      }
+    }
+    if (cur) lines.push(cur);
+    return lines.join('\n');
+  }
+
   _sePlay(key, vol) {
     if (vol <= 0) return;
     if (!this.cache.audio.has(key)) return;
@@ -1962,15 +1992,14 @@ class MainScene extends Phaser.Scene {
       .setAlpha(0).setDepth(20);
     // 話者名
     this._dlgSpeakerTxt = this.add.text(14, BATTLE_H - boxH + 10, '', {
-      fontSize: '14px', color: '#ffdd88',
+      fontSize: '17px', color: '#ffdd88',
       fontFamily: 'serif', fontStyle: 'bold',
       stroke: '#000', strokeThickness: 2
     }).setAlpha(0).setDepth(21);
     // 台詞本文
     this._dlgBodyTxt = this.add.text(14, BATTLE_H - boxH + 30, '', {
-      fontSize: '15px', color: '#ffffff',
+      fontSize: '18px', color: '#ffffff',
       fontFamily: 'serif',
-      wordWrap: { width: W - 28, useAdvancedWrap: true },
       stroke: '#000', strokeThickness: 2
     }).setAlpha(0).setDepth(21);
     // ▼ インジケーター
@@ -2038,25 +2067,26 @@ class MainScene extends Phaser.Scene {
   _dlgRender() {
     const line = this._dlgLines[this._dlgIdx];
     if (line.speaker) {
-      // 通常セリフ: 黒背景・上端ライン・白文字
+      // 通常セリフ: 黒背景・上端ライン・左揃え白文字
       this._dlgBg.setFillStyle(0x000000).setAlpha(0.92);
       this._dlgLine.setAlpha(1);
       this._dlgSpeakerTxt.setText(line.speaker).setAlpha(1);
       this._dlgBodyTxt
-        .setY(BATTLE_H - 88)
-        .setStyle({ fontSize: '15px', color: '#ffffff', fontFamily: 'serif', fontStyle: 'normal', stroke: '#000', strokeThickness: 2, wordWrap: { width: W - 28, useAdvancedWrap: true } })
+        .setX(14).setY(BATTLE_H - 85).setOrigin(0, 0)
+        .setStyle({ fontSize: '18px', color: '#ffffff', fontFamily: 'serif', fontStyle: 'normal', align: 'left', stroke: '#000', strokeThickness: 2 })
+        .setText(this._kinsokuWrap(line.text, W - 28, '18px serif'))
         .setAlpha(1);
     } else {
-      // ナレーション: 茶半透明背景・ラインなし・斜体セピア
+      // ナレーション: 茶半透明背景・ラインなし・中央揃え斜体セピア
       this._dlgBg.setFillStyle(0x2a1200).setAlpha(0.78);
       this._dlgLine.setAlpha(0);
       this._dlgSpeakerTxt.setAlpha(0);
       this._dlgBodyTxt
-        .setY(BATTLE_H - 104)
-        .setStyle({ fontSize: '15px', color: '#c8a87a', fontFamily: 'serif', fontStyle: 'italic', stroke: '#000', strokeThickness: 2, wordWrap: { width: W - 28, useAdvancedWrap: true } })
+        .setX(W / 2).setY(BATTLE_H - 95).setOrigin(0.5, 0)
+        .setStyle({ fontSize: '18px', color: '#c8a87a', fontFamily: 'serif', fontStyle: 'italic', align: 'center', stroke: '#000', strokeThickness: 2 })
+        .setText(this._kinsokuWrap(line.text, W - 28, 'italic 18px serif'))
         .setAlpha(1);
     }
-    this._dlgBodyTxt.setText(line.text);
   }
 
   _dlgNext() {
