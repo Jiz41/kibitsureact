@@ -34,6 +34,14 @@ class MainScene extends Phaser.Scene {
     this.load.audio('bgm_battle', 'audio/onisankochira.mp3');
     this.load.audio('bgm_shurai', 'audio/shurai.mp3');
     this.load.audio('bgm_boss5',  'audio/ushitoraMantra.mp3');
+    this.load.audio('se_slash_1',      'audio/se_slash_1.mp3');
+    this.load.audio('se_slash_2',      'audio/se_slash_2.mp3');
+    this.load.audio('se_charm_fire',   'audio/se_charm_fire.mp3');
+    this.load.audio('se_charm_water',  'audio/se_charm_water.mp3');
+    this.load.audio('se_charm_wind',   'audio/se_charm_wind.mp3');
+    this.load.audio('se_charm_earth',  'audio/se_charm_earth.mp3');
+    this.load.audio('se_death_small',  'audio/se_death_small.mp3');
+    this.load.audio('se_death_boss',   'audio/se_death_boss.mp3');
 
     /* ── ローディング画面 ───────────────────────── */
     const LD    = 50;                          // depth（ゲームオブジェクト全て上）
@@ -179,7 +187,8 @@ class MainScene extends Phaser.Scene {
     this.paused    = false;
     this.bgmVol    = loadOpts().bgmVol;
     this.bgmOn     = this.bgmVol > 0;
-    this.seVol     = loadOpts().seVol;
+    this.seVol      = loadOpts().seVol;
+    this._slashSeMs = 0;
     this.bgmCurrent = null;
     this.soranaki        = null;
     this._sorPeaceMs     = 0;
@@ -825,6 +834,10 @@ class MainScene extends Phaser.Scene {
     const list = this.onis.getChildren().filter(o => o.active);
     if (!list.length) return;
     this._sorActionTaken();
+    if (this.seVol > 0 && this.time.now - this._slashSeMs > 100) {
+      this._slashSeMs = this.time.now;
+      this.sound.play(Math.random() < 0.5 ? 'se_slash_1' : 'se_slash_2', { volume: 0.4 * this.seVol });
+    }
     const t = list.reduce((a, b) => a.x < b.x ? a : b);
     const dmg = Math.round(this.slashDmg * this.combo);
     this._oniDmg(t, dmg);
@@ -1001,6 +1014,10 @@ class MainScene extends Phaser.Scene {
     const c = this.slotCharms[idx];
     this.charmTimers[idx] = 0; this._cellUp(idx);
     this._sorActionTaken();
+    if (this.seVol > 0) {
+      const seKey = `se_charm_${c.attr}`;
+      if (this.cache.audio.has(seKey)) this.sound.play(seKey, { volume: 0.4 * this.seVol });
+    }
     fireCharm(c.id, this);
   }
 
@@ -1319,6 +1336,8 @@ class MainScene extends Phaser.Scene {
     if (this._sorShakeTimer)  { this._sorShakeTimer.remove(false);  this._sorShakeTimer  = null; }
     if (this._sorGlitchTimer) { this._sorGlitchTimer.remove(false); this._sorGlitchTimer = null; }
 
+    if (this.seVol > 0) this.sound.play('se_death_boss', { volume: 0.4 * this.seVol });
+
     const s = this.soranaki;
     const targets = [s];
     if (s.lbl)     targets.push(s.lbl);
@@ -1475,6 +1494,7 @@ class MainScene extends Phaser.Scene {
 
   /* ── Death FX: 小鬼・中鬼・大鬼 ──────────── */
   _deathFxSmall(oni, onComplete) {
+    if (this.seVol > 0) this.sound.play('se_death_small', { volume: 0.4 * this.seVol });
     this._oniRmUI(oni);
     oni.setActive(false);
     this.tweens.add({
@@ -1522,6 +1542,7 @@ class MainScene extends Phaser.Scene {
   }
 
   _bossSandify(oni, onComplete) {
+    if (this.seVol > 0) this.sound.play('se_death_boss', { volume: 0.4 * this.seVol });
     const texW = oni.width, texH = oni.height;
     const sprTop = oni.y - oni.hSz / 2;
     const count  = Phaser.Math.Between(40, 50);
