@@ -44,6 +44,10 @@ class MainScene extends Phaser.Scene {
     this.load.audio('se_death_boss',     'audio/se_death_boss.mp3');
     this.load.audio('se_kibitsu_damage', 'audio/se_kibitsu_damage.mp3');
     this.load.audio('se_ultimate',       'audio/se_ultimate.mp3');
+    this.load.audio('se_wave_clear',   ['audio/se_wave_clear.mp3',   'audio/se_wave_clear.wav']);
+    this.load.audio('se_boss_warning', ['audio/se_boss_warning.mp3', 'audio/se_boss_warning.wav']);
+    this.load.audio('se_slot_open',    ['audio/se_slot_open.mp3',    'audio/se_slot_open.wav']);
+    this.load.audio('se_exp_gain',     ['audio/se_exp_gain.mp3',     'audio/se_exp_gain.wav']);
 
     /* ── ローディング画面 ───────────────────────── */
     const LD    = 50;                          // depth（ゲームオブジェクト全て上）
@@ -635,6 +639,7 @@ class MainScene extends Phaser.Scene {
 
   /* ── Charm pick ─────────────────────────── */
   _cpOpen(mode, slot) {
+    if (this.seVol > 0) this.sound.play('se_slot_open', { volume: 0.4 * this.seVol });
     this._cpMode = mode; this._cpSlot = slot; this._cpVis = true;
     this.cpBg.setAlpha(0.97); this.cpTtl.setAlpha(1); this.cpCnl.setAlpha(1);
     this.cpFullMsg.setAlpha(0);
@@ -1170,6 +1175,7 @@ class MainScene extends Phaser.Scene {
 
     this.dialogActive = true;
     this._introLock = true;
+    if (this.seVol > 0) this.sound.play('se_boss_warning', { volume: 0.4 * this.seVol });
     const overlay = this.add.rectangle(W/2, BATTLE_H/2, W, BATTLE_H, 0x000000, 0).setDepth(50);
 
     const warnTxt = this.add.text(W/2, BATTLE_H/2 - 20, warnBody, {
@@ -1630,6 +1636,7 @@ class MainScene extends Phaser.Scene {
     if (oni.setTint) { oni.setTint(0xff4444); this.time.delayedCall(100, () => { if (oni?.active) oni.clearTint?.(); }); }
     if (oni.hp <= 0) {
       this.defeated++; this.totalExp += oni.exp;
+      if (oni.exp > 0 && this.seVol > 0) this.sound.play('se_exp_gain', { volume: 0.4 * this.seVol });
       if (oni.isBoss) {
         if (!this.waveDone) this._bossDeathSequence(oni);
       } else {
@@ -1724,6 +1731,7 @@ class MainScene extends Phaser.Scene {
   _gameOver() { this._stopBossTimers(); this.dead = true; deleteSave(); this._ov('GAME OVER', '#ff4444', 'タップしてリスタート'); }
 
   _ov(title, color, sub) {
+    if (title === 'WAVE CLEAR!' && this.seVol > 0) this.sound.play('se_wave_clear', { volume: 0.4 * this.seVol });
     this.ovBg.setAlpha(0.55);
     this.ovTitle.setText(title).setStyle({ color, fontSize:'46px', fontFamily:'serif', fontStyle:'bold', stroke:'#000', strokeThickness:8 }).setAlpha(1);
     this.ovSub.setText(sub).setAlpha(1);
