@@ -31,6 +31,8 @@ class MainScene extends Phaser.Scene {
     this.load.image('momotaro',     'img/%3F%3F%3F.png');
     this.load.image('bg_sky',    'img/back_sky.png');
     this.load.image('bg_ground', 'img/back_ground.png');
+    this.load.image('kire',   'img/kire.png');
+    this.load.image('kougun', 'img/kougun.png');
     this.load.audio('bgm_battle', 'audio/onisankochira.mp3');
     this.load.audio('bgm_shurai', 'audio/shurai.mp3');
     this.load.audio('bgm_boss5',  'audio/ushitoraMantra.mp3');
@@ -2142,21 +2144,10 @@ class MainScene extends Phaser.Scene {
     );
     this._dbgJumpVisible = false;
 
-    // ── オンスクリーンログ表示（右上 200×90） ──
-    const LOG_W = 200, LOG_H = 90, LOG_X = W - 2, LOG_Y = 52;
-    this._dbgLogBg = this.add.rectangle(W - LOG_W / 2 - 2, LOG_Y + LOG_H / 2, LOG_W + 4, LOG_H + 4, 0x000000, 0.55).setDepth(99);
-    this._dbgLogTxt = this.add.text(LOG_X, LOG_Y, '', {
-      fontSize: '10px', color: '#00ff88', fontFamily: 'monospace', align: 'right',
-      wordWrap: { width: LOG_W },
-    }).setOrigin(1, 0).setDepth(100);
-    this._dbgLogLines = [];
   }
 
   _dbgLog(msg) {
-    if (!this._dbgLogLines) return;
-    this._dbgLogLines.push(msg);
-    if (this._dbgLogLines.length > 5) this._dbgLogLines.shift();
-    this._dbgLogTxt.setText(this._dbgLogLines.join('\n'));
+    console.log('[DBG]', msg);
   }
 
   _dbgJumpToggle() {
