@@ -1429,8 +1429,7 @@ class MainScene extends Phaser.Scene {
           return o.visible;
         });
       }
-      const vis = Math.random() < 0.5;
-      this._sorFlickerSavedVis.forEach(o => { if (o.active) o.setVisible(vis); });
+      this._sorFlickerSavedVis.forEach(o => { if (o.active) o.setVisible(Math.random() < 0.5); });
       this._sorFlickerTimer = this.time.delayedCall(Phaser.Math.Between(16, 32), doFlicker);
     };
     // ホワイトアウト消灯後（350ms）から開始し暗転を防ぐ
