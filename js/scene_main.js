@@ -1360,10 +1360,10 @@ class MainScene extends Phaser.Scene {
     for (let i = 0; i < count; i++) {
       this._sorKireSprites.push(
         this.add.image(
-          Phaser.Math.Between(10, W - 10),
-          Phaser.Math.Between(10, BATTLE_H - 10),
+          Phaser.Math.Between(40, W - 40),
+          Phaser.Math.Between(40, BATTLE_H - 40),
           'kire'
-        ).setDepth(53).setAlpha(0)
+        ).setDisplaySize(80, 80).setDepth(53).setAlpha(0)
       );
     }
     this._sorKireFlicker();
@@ -1426,7 +1426,8 @@ class MainScene extends Phaser.Scene {
       });
       this._sorFlickerTimer = this.time.delayedCall(Phaser.Math.Between(16, 32), doFlicker);
     };
-    doFlicker();
+    // ホワイトアウト消灯後（350ms）から開始し暗転を防ぐ
+    this._sorFlickerTimer = this.time.delayedCall(350, doFlicker);
   }
 
   _sorEffect4Stop() {
@@ -1607,7 +1608,7 @@ class MainScene extends Phaser.Scene {
     const num = KANJI[step - 1];
 
     // ホワイトアウトピーク時に kougun ⇔ soranaki 切り替え（拾〜伍：step 1-6）
-    if (step <= 6 && this._sorKougunSprite?.active && this.soranaki?.active) {
+    if (step <= 6 && this._sorKougunSprite && this.soranaki) {
       this._sorKougunVisible = !this._sorKougunVisible;
       this.soranaki.setVisible(!this._sorKougunVisible);
       this.soranaki.outlines?.forEach(o => o.setVisible(!this._sorKougunVisible));
@@ -1615,7 +1616,23 @@ class MainScene extends Phaser.Scene {
     }
 
     if (step === 5) this._sorKireStart();
-    if (step === 6) { this._sorKireStop();    this._sorEffect4Start(); }
+    if (step === 6) {
+      this._sorKireStop();
+      // kire 終了後: 戦闘エリアオブジェクトの可視性を強制リセット
+      this.children.list.forEach(o => {
+        if (o.active && typeof o.setVisible === 'function' && o.depth < 45 &&
+            typeof o.y === 'number' && o.y < BATTLE_H) o.setVisible(true);
+      });
+      if (this._sorKougunSprite) this._sorKougunSprite.setVisible(this._sorKougunVisible);
+      if (this.soranaki) {
+        this.soranaki.setVisible(!this._sorKougunVisible);
+        this.soranaki.outlines?.forEach(o => o.setVisible(!this._sorKougunVisible));
+      }
+      // ホワイトアウト消灯後（350ms）にエフェクト4開始
+      this.time.delayedCall(350, () => {
+        if (!this._sorClearDone && !this._sorFlickerActive) this._sorEffect4Start();
+      });
+    }
     if (step === 7) { this._sorEffect4Stop(); this._sorEffect5Start(); }
     if (step === 8) { this._sorEffect5Stop(); this._sorEffect6Start(); }
     if (step === 9) { this._sorEffect6Stop(); this._sorEffect7Start(); }
