@@ -211,20 +211,8 @@ class MainScene extends Phaser.Scene {
     this._sorKougunSprite  = null;
     this._sorKireSprites   = [];
     this._sorKireTimer     = null;
-    this._sorFlickerActive   = false;
-    this._sorFlickerSavedVis = null;
-    this._sorTintTimer       = null;
-    this._sorFlickerTimer    = null;
-    this._sorScanlineActive = false;
-    this._sorScanlineGfx    = null;
-    this._sorScanlineTimer  = null;
-    this._sorSplitTimer     = null;
-    this._sorScanlineOffset = 0;
-    this._sorTileActive     = false;
-    this._sorTileTimer      = null;
-    this._sorChaosActive    = false;
-    this._sorChaosTimer     = null;
-    this._sorChaosObjs      = [];
+    this._sorGlitchLv        = 0;
+    this._sorGlitchLoopTimer = null;
     this.selectedUltId = this.selectedUltId || 'kaguya';
     this._ultLpTimer   = null;
     this._ultMenuVis   = false;
@@ -1357,27 +1345,24 @@ class MainScene extends Phaser.Scene {
   /* ── 空無童子：kire チカチカ（陸→伍の18秒間） ─── */
   _sorKireStart() {
     if (this._sorKireSprites.length) return;
-    const count = Phaser.Math.Between(20, 30);
-    for (let i = 0; i < count; i++) {
-      this._sorKireSprites.push(
-        this.add.image(
-          Phaser.Math.Between(40, W - 40),
-          Phaser.Math.Between(40, BATTLE_H - 40),
-          'kire'
-        ).setDisplaySize(80, 80).setDepth(53).setAlpha(0)
-      );
+    const sz = 135;
+    for (let r = 0; sz * (r + 0.5) <= BATTLE_H; r++) {
+      for (let c = 0; sz * (c + 0.5) <= W; c++) {
+        this._sorKireSprites.push(
+          this.add.image(W - sz * (c + 0.5), sz * (r + 0.5), 'kire')
+            .setDisplaySize(sz, sz).setDepth(53).setAlpha(0)
+        );
+      }
     }
     this._sorKireFlicker();
   }
 
   _sorKireFlicker() {
     if (!this._sorKireSprites.length) return;
-    this._sorKireSprites.forEach(img => {
-      if (!img.active) return;
-      img.setAlpha(Math.random() < 0.65 ? Phaser.Math.FloatBetween(0.75, 1.0) : 0.1);
-    });
+    const a = Math.random() < 0.55 ? 1 : 0;
+    this._sorKireSprites.forEach(img => { if (img.active) img.setAlpha(a); });
     this._sorKireTimer = this.time.delayedCall(
-      Phaser.Math.Between(40, 280),
+      Phaser.Math.Between(60, 350),
       () => { if (this._sorKireSprites.length) this._sorKireFlicker(); }
     );
   }
@@ -1391,10 +1376,7 @@ class MainScene extends Phaser.Scene {
   /* ── 空無童子：全演出一括停止 ─── */
   _sorAllEffectsStop() {
     this._sorKireStop();
-    this._sorEffect4Stop();
-    this._sorEffect5Stop();
-    this._sorEffect6Stop();
-    this._sorEffect7ChaosStop();
+    this._sorGlitchLoopStop();
     if (this._sorKougunSprite?.active) this._sorKougunSprite.setVisible(false);
     if (this.soranaki?.active) {
       this.soranaki.setVisible(true);
@@ -1403,179 +1385,45 @@ class MainScene extends Phaser.Scene {
     this._sorKougunVisible = false;
   }
 
-  /* ── 実装4：色化け＋スプライトちらつき（伍→肆） ─── */
-  _sorEffect4Start() {
-    if (this._sorFlickerActive) return;
-    this._sorFlickerActive   = true;
-    this._sorFlickerSavedVis = null;
-    const TINT_COLS = [0xff0088, 0x00ffcc, 0xffaa00, 0x8844ff, 0x00ff66, 0xff4400, 0x44aaff, 0xffff00];
-    this._sorTintTimer = this.time.addEvent({
-      delay: 1000, loop: true,
-      callback: () => {
-        if (!this._sorFlickerActive) return;
-        this.cameras.main.setTint(TINT_COLS[Phaser.Math.Between(0, TINT_COLS.length - 1)]);
+  /* ── 空無童子：グリッチループ（伍以降・lv1〜4） ─── */
+  _sorGlitchLoopStart(lv) {
+    this._sorGlitchLoopStop();
+    this._sorGlitchLv = lv;
+    const run = () => {
+      if (!this._sorGlitchLv || this._sorClearDone) return;
+      if (lv === 1) {
+        // 伍→四：頻度増・ランダム間隔・ずれ幅やや拡大
+        this._sorGlitch(2.0);
+        this._sorGlitchLoopTimer = this.time.delayedCall(Phaser.Math.Between(1000, 3000), run);
+      } else if (lv === 2) {
+        // 四→参：さらに頻度増・ずれ幅拡大
+        this._sorGlitch(3.0);
+        this._sorGlitchLoopTimer = this.time.delayedCall(Phaser.Math.Between(400, 900), run);
+      } else if (lv === 3) {
+        // 参→弐：短冊・色収差・スキャンライン3種同時発動
+        this._sorGlitch(4.0);
+        this._sorGlitchLoopTimer = this.time.delayedCall(Phaser.Math.Between(200, 500), run);
+      } else {
+        // 弐→壱：最大強度・ほぼ連続発動
+        this._sorGlitch(5.5);
+        this._sorGlitchLoopTimer = this.time.delayedCall(Phaser.Math.Between(40, 120), run);
       }
-    });
-    const doFlicker = () => {
-      if (!this._sorFlickerActive) return;
-      // 初回起動時：フリッカー対象を「現時点で visible=true のオブジェクト」に限定して記録
-      // こうすることで pauseOv / pauseItems 等の「本来非表示」オブジェクトを誤って表示しない
-      if (!this._sorFlickerSavedVis) {
-        const sorParts = new Set([this.soranaki, this._sorKougunSprite,
-          ...(this.soranaki?.outlines || [])].filter(Boolean));
-        this._sorFlickerSavedVis = this.children.list.filter(o => {
-          if (!o.active || !o.setVisible || sorParts.has(o) || o.depth >= 45) return false;
-          if (typeof o.y === 'number' && o.y >= BATTLE_H) return false;
-          return o.visible;
-        });
-      }
-      this._sorFlickerSavedVis.forEach(o => { if (o.active) o.setVisible(Math.random() < 0.5); });
-      this._sorFlickerTimer = this.time.delayedCall(Phaser.Math.Between(16, 32), doFlicker);
     };
-    // ホワイトアウト消灯後（350ms）から開始し暗転を防ぐ
-    this._sorFlickerTimer = this.time.delayedCall(350, doFlicker);
+    run();
   }
 
-  _sorEffect4Stop() {
-    if (!this._sorFlickerActive) return;
-    this._sorFlickerActive = false;
-    if (this._sorTintTimer)    { this._sorTintTimer.remove(false);    this._sorTintTimer    = null; }
-    if (this._sorFlickerTimer) { this._sorFlickerTimer.remove(false); this._sorFlickerTimer = null; }
-    this.cameras.main.clearTint();
-    // 記録されたオブジェクトのみ visible=true に戻す（非表示オブジェクトは触らない）
-    if (this._sorFlickerSavedVis) {
-      this._sorFlickerSavedVis.forEach(o => { if (o.active) o.setVisible(true); });
-      this._sorFlickerSavedVis = null;
-    }
-    // kougun/soranaki 可視状態を再適用
-    if (this._sorKougunSprite?.active) {
-      this._sorKougunSprite.setVisible(this._sorKougunVisible);
-      this.soranaki?.setVisible(!this._sorKougunVisible);
-      this.soranaki?.outlines?.forEach(o => o.setVisible(!this._sorKougunVisible));
-    }
+  _sorGlitchLoopStop() {
+    this._sorGlitchLv = 0;
+    if (this._sorGlitchLoopTimer) { this._sorGlitchLoopTimer.remove(false); this._sorGlitchLoopTimer = null; }
   }
 
-  /* ── 実装5：走査線＋画面半壊（肆→参） ─── */
-  _sorEffect5Start() {
-    if (this._sorScanlineActive) return;
-    this._sorScanlineActive = true;
-    this._sorScanlineOffset = 0;
-    this._sorScanlineGfx = this.add.graphics().setDepth(54);
-    const SCAN_GAP = 20;
-    let lastMs = this.time.now;
-    const updateScan = () => {
-      if (!this._sorScanlineActive) return;
-      const now = this.time.now;
-      this._sorScanlineOffset = (this._sorScanlineOffset + (now - lastMs) * 0.4) % SCAN_GAP;
-      lastMs = now;
-      if (this._sorScanlineGfx?.active) {
-        this._sorScanlineGfx.clear();
-        for (let y = this._sorScanlineOffset; y < BATTLE_H; y += SCAN_GAP) {
-          this._sorScanlineGfx.fillStyle(0x000000, 0.22);
-          this._sorScanlineGfx.fillRect(0, y, W, 2);
-        }
-      }
-      this._sorScanlineTimer = this.time.delayedCall(33, updateScan);
-    };
-    updateScan();
-    const doSplit = () => {
-      if (!this._sorScanlineActive) return;
-      const half = BATTLE_H / 2;
-      const rt = this.add.renderTexture(0, half, W, half).setDepth(50).setAlpha(0.75);
-      this.children.list
-        .filter(o => o !== rt && o.active && o.visible && o.depth < 45 &&
-                     typeof o.y === 'number' && o.y < BATTLE_H + 80)
-        .forEach(o => rt.draw(o, o.x, o.y - half));
-      rt.x = Phaser.Math.Between(-30, 30);
-      this.time.delayedCall(67,  () => { if (rt.active) rt.x = Phaser.Math.Between(-30, 30); });
-      this.time.delayedCall(134, () => { if (rt.active) rt.x = Phaser.Math.Between(-15, 15); });
-      this.time.delayedCall(200, () => { if (rt.active) rt.destroy(); });
-      this._sorSplitTimer = this.time.delayedCall(Phaser.Math.Between(400, 900), doSplit);
-    };
-    this._sorSplitTimer = this.time.delayedCall(300, doSplit);
-  }
-
-  _sorEffect5Stop() {
-    if (!this._sorScanlineActive) return;
-    this._sorScanlineActive = false;
-    if (this._sorScanlineTimer) { this._sorScanlineTimer.remove(false); this._sorScanlineTimer = null; }
-    if (this._sorSplitTimer)    { this._sorSplitTimer.remove(false);    this._sorSplitTimer    = null; }
-    if (this._sorScanlineGfx?.active) { this._sorScanlineGfx.destroy(); this._sorScanlineGfx = null; }
-  }
-
-  /* ── 実装6：タイル並び替え＋色収差激化（参→弐） ─── */
-  _sorEffect6Start() {
-    if (this._sorTileActive) return;
-    this._sorTileActive = true;
-    const doTile = () => {
-      if (!this._sorTileActive) return;
-      const STRIP_H = Phaser.Math.Between(8, 18);
-      for (let y = 0; y < BATTLE_H; y += STRIP_H) {
-        const h = Math.min(STRIP_H, BATTLE_H - y);
-        const rt = this.add.renderTexture(0, y, W, h).setDepth(50).setAlpha(0.8);
-        this.children.list
-          .filter(o => o !== rt && o.active && o.visible && o.depth < 45 &&
-                       typeof o.y === 'number' && o.y < BATTLE_H + 80)
-          .forEach(o => rt.draw(o, o.x, o.y - y));
-        rt.x = Phaser.Math.Between(-22, 22);
-        this.time.delayedCall(Phaser.Math.Between(120, 350), () => { if (rt.active) rt.destroy(); });
-      }
-      const aberr = this.add.graphics().setDepth(51);
-      aberr.fillStyle(0xff2200, 0.4); aberr.fillRect(8,  0, W, BATTLE_H);
-      aberr.fillStyle(0x0033ff, 0.4); aberr.fillRect(-8, 0, W, BATTLE_H);
-      this.time.delayedCall(220, () => { if (aberr.active) aberr.destroy(); });
-      this._sorTileTimer = this.time.delayedCall(Phaser.Math.Between(250, 600), doTile);
-    };
-    doTile();
-  }
-
-  _sorEffect6Stop() {
-    if (!this._sorTileActive) return;
-    this._sorTileActive = false;
-    if (this._sorTileTimer) { this._sorTileTimer.remove(false); this._sorTileTimer = null; }
-  }
-
-  /* ── 実装7：全演出同時＋座標暴走（弐→壱） ─── */
-  _sorEffect7Start() {
-    this._sorEffect4Start();
-    this._sorEffect5Start();
-    this._sorEffect6Start();
-    if (this._sorChaosActive) return;
-    this._sorChaosActive = true;
-    this._sorChaosObjs = [];
-    this.children.list.forEach(o => {
-      if (!o.active || o === this.soranaki || o === this._sorKougunSprite) return;
-      if (o.isSoranaki || this.soranaki?.outlines?.includes(o)) return;
-      if (typeof o.x !== 'number' || o.depth >= 45) return;
-      this._sorChaosObjs.push({ obj: o, ox: o.x, oy: o.y });
-    });
-    const doChaos = () => {
-      if (!this._sorChaosActive) return;
-      this._sorChaosObjs.forEach(({ obj, ox, oy }) => {
-        if (!obj.active) return;
-        obj.x = ox + Phaser.Math.Between(-50, 50);
-        obj.y = oy + Phaser.Math.Between(-25, 25);
-      });
-      this._sorChaosTimer = this.time.delayedCall(Phaser.Math.Between(80, 250), doChaos);
-    };
-    doChaos();
-  }
-
-  _sorEffect7ChaosStop() {
-    if (!this._sorChaosActive) return;
-    this._sorChaosActive = false;
-    if (this._sorChaosTimer) { this._sorChaosTimer.remove(false); this._sorChaosTimer = null; }
-    this._sorChaosObjs.forEach(({ obj, ox, oy }) => { if (obj.active) { obj.x = ox; obj.y = oy; } });
-    this._sorChaosObjs = [];
-  }
-
-  _sorGlitch() {
+  _sorGlitch(scale = 1) {
     if (!this.soranaki?.active) return;
 
-    // ① 短冊ノイズ（5〜8本、100ms）
+    // ① 短冊ノイズ：本数・強度をscaleで拡大
     const noise = this.add.graphics().setDepth(52);
-    for (let i = 0, n = Phaser.Math.Between(5, 8); i < n; i++) {
-      noise.fillStyle(0xffffff, Phaser.Math.FloatBetween(0.08, 0.28));
+    for (let i = 0, n = Phaser.Math.Between(5, 5 + Math.round(scale * 3)); i < n; i++) {
+      noise.fillStyle(0xffffff, Phaser.Math.FloatBetween(0.08, Math.min(0.7, 0.28 * scale)));
       noise.fillRect(
         Phaser.Math.Between(0, W),
         Phaser.Math.Between(0, BATTLE_H - 4),
@@ -1585,24 +1433,26 @@ class MainScene extends Phaser.Scene {
     }
     this.time.delayedCall(100, () => { if (noise.active) noise.destroy(); });
 
-    // ② 色収差オーバーレイ（150ms）
+    // ② 色収差オーバーレイ：ずれ幅をscaleで拡大
     const aberr = this.add.graphics().setDepth(51);
-    const sh = Phaser.Math.Between(1, 2);
-    aberr.fillStyle(0xff2200, 0.07); aberr.fillRect(sh,  0, W, BATTLE_H);
-    aberr.fillStyle(0x0033ff, 0.07); aberr.fillRect(-sh, 0, W, BATTLE_H);
+    const sh = Phaser.Math.Between(1, 2) * scale;
+    aberr.fillStyle(0xff2200, Math.min(0.3, 0.07 * scale)); aberr.fillRect(sh,  0, W, BATTLE_H);
+    aberr.fillStyle(0x0033ff, Math.min(0.3, 0.07 * scale)); aberr.fillRect(-sh, 0, W, BATTLE_H);
     this.time.delayedCall(150, () => { if (aberr.active) aberr.destroy(); });
 
-    // ③ スキャンラインずれ：戦闘エリアをRenderTextureに焼き付けて横ずれ（200ms）
+    // ③ スキャンラインずれ：横ずれ幅をscaleで拡大
     const rt = this.add.renderTexture(0, 0, W, BATTLE_H).setDepth(50).setAlpha(0.7);
     this.children.list
       .filter(o => o !== rt && o !== noise && o !== aberr &&
                    o.active && o.visible && o.depth < 45 &&
                    typeof o.y === 'number' && o.y < BATTLE_H + 80)
       .forEach(o => rt.draw(o));
+    const m  = Math.round(15 * scale);
+    const m2 = Math.round(8  * scale);
     const ox = [
-      Phaser.Math.Between(-15, 15),
-      Phaser.Math.Between(-15, 15),
-      Phaser.Math.Between(-8,  8),
+      Phaser.Math.Between(-m,  m),
+      Phaser.Math.Between(-m,  m),
+      Phaser.Math.Between(-m2, m2),
     ];
     rt.x = ox[0];
     this.time.delayedCall(67,  () => { if (rt.active) rt.x = ox[1]; });
@@ -1626,14 +1476,14 @@ class MainScene extends Phaser.Scene {
     if (step === 5) this._sorKireStart();
     if (step === 6) {
       this._sorKireStop();
-      // ホワイトアウト消灯後（350ms）にエフェクト4開始
+      // ホワイトアウト消灯後（350ms）にグリッチlv1開始
       this.time.delayedCall(350, () => {
-        if (!this._sorClearDone && !this._sorFlickerActive) this._sorEffect4Start();
+        if (!this._sorClearDone) this._sorGlitchLoopStart(1);
       });
     }
-    if (step === 7) { this._sorEffect4Stop(); this._sorEffect5Start(); }
-    if (step === 8) { this._sorEffect5Stop(); this._sorEffect6Start(); }
-    if (step === 9) { this._sorEffect6Stop(); this._sorEffect7Start(); }
+    if (step === 7) this._sorGlitchLoopStart(2);
+    if (step === 8) this._sorGlitchLoopStart(3);
+    if (step === 9) this._sorGlitchLoopStart(4);
 
     // ホワイトアウトフェード + 漢数字フェードアウト
     const wo = this.add.rectangle(W/2, BATTLE_H/2, W, BATTLE_H, 0xffffff, 1).setDepth(55);
@@ -2489,8 +2339,7 @@ class MainScene extends Phaser.Scene {
     this.soranaki = null; this._sorPeaceMs = 0; this._sorClearDone = false;
     this._sorCountStep = 0; this._sorGlitchStep = 0;
     this._sorKougunVisible = false; this._sorKireSprites = [];
-    this._sorFlickerActive = false; this._sorScanlineActive = false;
-    this._sorTileActive = false; this._sorChaosActive = false; this._sorChaosObjs = [];
+    this._sorGlitchLv = 0;
     if (this._sorClimaxTimer) { this._sorClimaxTimer.remove(false); this._sorClimaxTimer = null; }
     // BGM を通常戦闘に戻す
     if (this.bgmOn && this.bgmCurrent) {
