@@ -602,6 +602,10 @@ class MainScene extends Phaser.Scene {
     if (DEBUG) {
       if (x >= 4 && x <= 80 && y >= 3 && y <= 24) { this._dbgWaveSkip(); return; }
       if (x >= 4 && x <= 80 && y >= 27 && y <= 48) { this._dbgJumpToggle(); return; }
+      if (x >= 4 && x <= 80 && y >= 52 && y <= 141) {
+        const idx = Math.floor((y - 52) / 18);
+        if (idx >= 0 && idx < 5) { this._dbgWaveJump([10, 20, 30, 40, 50][idx]); return; }
+      }
       if (this._dbgJumpVisible) {
         if (Math.abs(x - W/2) < 60 && Math.abs(y - 308) < 16) { this._dbgJumpUiHide(); return; }
         for (let ch = 1; ch <= 5; ch++) {
@@ -2273,6 +2277,12 @@ class MainScene extends Phaser.Scene {
     // JUMP ボタン（左上 4-80, 27-48）
     this.add.rectangle(42, 37, 76, 20, 0x001122, 0.85).setStrokeStyle(1, 0x3388ff).setDepth(38);
     this.add.text(42, 37, 'JUMP', { fontSize:'9px', color:'#3399ff', fontFamily:'monospace' }).setOrigin(0.5).setDepth(39);
+    // WAVE直接ジャンプボタン（左上 4-80, 52-141: W10〜W50 各18px）
+    [10, 20, 30, 40, 50].forEach((w, i) => {
+      const cy = 60 + i * 18;
+      this.add.rectangle(42, cy, 76, 16, 0x001a0a, 0.85).setStrokeStyle(1, 0x22aa55).setDepth(38);
+      this.add.text(42, cy, `W${w}`, { fontSize:'9px', color:'#44cc77', fontFamily:'monospace' }).setOrigin(0.5).setDepth(39);
+    });
 
     // ジャンプ選択UI（初期非表示）
     this._dbgJumpObjs = [];
@@ -2350,6 +2360,33 @@ class MainScene extends Phaser.Scene {
     this._bgChapterUp();
     this._hdrUp(); this._gridUp();
     this._dbgJumpUiHide();
+  }
+
+  _dbgWaveJump(targetWave) {
+    const ch = Math.ceil(targetWave / 10);
+    this._stopBossTimers();
+    if (this._sorShakeTimer)  { this._sorShakeTimer.remove(false);  this._sorShakeTimer  = null; }
+    if (this._sorGlitchTimer) { this._sorGlitchTimer.remove(false); this._sorGlitchTimer = null; }
+    if (this._sorClimaxTimer) { this._sorClimaxTimer.remove(false); this._sorClimaxTimer = null; }
+    this._sorAllEffectsStop();
+    if (this._sorKougunSprite?.active) { this._sorKougunSprite.destroy(); this._sorKougunSprite = null; }
+    for (const oni of [...this.onis.getChildren()]) { if (oni.active) { this._oniRmUI(oni); oni.destroy(); } }
+    this.wave    = targetWave;
+    this.chapter = ch;
+    this.spawned = this.defeated = this.spawnTimer = 0;
+    this.waveDone = this.bossSpawned = false;
+    this.soranaki = null; this._sorPeaceMs = 0; this._sorClearDone = false;
+    this._sorCountStep = 0; this._sorGlitchStep = 0;
+    this._sorKougunVisible = false; this._sorKireSprites = [];
+    this._sorGlitchLv = 0;
+    if (this._sorClimaxTimer) { this._sorClimaxTimer.remove(false); this._sorClimaxTimer = null; }
+    if (this.bgmOn && this.bgmCurrent) {
+      this.bgmCurrent.stop();
+      this.bgmCurrent = this.sound.add('bgm_battle', { loop: true, volume: this.bgmVol });
+      this.bgmCurrent.play();
+    }
+    this._bgChapterUp();
+    this._hdrUp(); this._gridUp();
   }
 
   /* ── Pause ──────────────────────────────── */
