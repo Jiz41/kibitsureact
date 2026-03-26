@@ -13,15 +13,15 @@ const NM_HP = 50, /* TODO: 本番値に戻す 本番: 480 */ NM_SPD = 35, NM_DMG
 const OGRE_HP = 80, /* TODO: 本番値に戻す 本番: 800 */ OGRE_SPD = 30, OGRE_DMG = 15; /* TODO: バランス調整中 元: 30 */
 
 /* ── Boss ───────────────────────────────────── */
-const BOSS_HP = 100, /* TODO: 本番値に戻す 本番: 1200 */ BOSS_SPD = 20, BOSS_DMG = 18; /* TODO: バランス調整中 元: 35 */
+const BOSS_HP = 3000, BOSS_SPD = 15, BOSS_DMG = 50;
 const BOSS_NAMES_BY_CHAPTER = ['温羅', '茨木童子', '酒呑童子', '大嶽丸', '空無童子'];
 
 /* ── Bullet ─────────────────────────────────── */
 const BUL_DMG = 20, BUL_MS = 1300, BUL_SPD = 300, BUL_RNG = 320;
 
 /* ── Slash ──────────────────────────────────── */
-const SL_BASE = 8, COMBO_STEP = 0.1, COMBO_MAX = 1.3, COMBO_RST = 1500;
-const GAUGE_MAX = 100, GAUGE_HIT = 5, SUPER_DMG = 120;
+const SL_BASE = 10, COMBO_STEP = 0.1, COMBO_MAX = 1.3, COMBO_RST = 1500;
+const GAUGE_MAX = 100, GAUGE_HIT = 1, SUPER_DMG = 120;
 
 /* ── EXP ────────────────────────────────────── */
-const EXP_G = 10, EXP_N = 30, EXP_B = 100;
+const EXP_G = 10, EXP_N = 30, EXP_B = 150;

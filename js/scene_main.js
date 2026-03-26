@@ -9,9 +9,9 @@ const BG_GROUND_GRAD_H  = 70;
 
 /* ── Ultimate Data ──────────────────────────── */
 const ULTIMATE_DATA = [
-  { id:'kaguya', name:'香山颪', yomi:'かぐやまおろし', unlockChapter:1, dmg:150 },
-  { id:'hyosen', name:'氷川叢雲', yomi:'ひょうせんむらくも', unlockChapter:3, dmg:80,  status:'slow', statusDuration:3000 },
-  { id:'hiroto', name:'广斗越天', yomi:'ひろとえてん',       unlockChapter:5, dmg:200 },
+  { id:'kaguya', name:'香山颪', yomi:'かぐやまおろし', unlockChapter:1, dmg:200 },
+  { id:'hyosen', name:'氷川叢雲', yomi:'ひょうせんむらくも', unlockChapter:3, dmg:350, status:'slow', statusDuration:3000 },
+  { id:'hiroto', name:'广斗越天', yomi:'ひろとえてん',       unlockChapter:5, dmg:500 },
 ];
 
 /* ══════════════════════════════════════════════ */
@@ -148,7 +148,7 @@ class MainScene extends Phaser.Scene {
   }
 
   create() {
-    this.kbHP = this.kbHPMax = 300;
+    this.kbHP = this.kbHPMax = 500;
     this.wave = 1;
     this.chapter = 1;
     this.spawned = this.defeated = this.spawnTimer = 0;
@@ -579,9 +579,9 @@ class MainScene extends Phaser.Scene {
     this.upgTtl = this.add.text(W/2, b + 18, 'キビツを強化する', { fontSize:'17px', color:'#ffcc88', fontFamily:'serif', fontStyle:'bold' }).setOrigin(0.5).setAlpha(0).setDepth(18);
     this.upgExp = this.add.text(W/2, b + 44, '', { fontSize:'13px', color:'#aaeeaa', fontFamily:'Arial' }).setOrigin(0.5).setAlpha(0).setDepth(18);
     this.upgBtns = [
-      { label:'HP強化',       key:'hp',    cost:20, desc:'+30 最大HP' },
-      { label:'斬撃強化',     key:'slash',  cost:25, desc:'基本威力 +2' },
-      { label:'詠唱短縮',     key:'cast',   cost:20, desc:'チャージ速度 +15%' },
+      { label:'HP強化',       key:'hp',    cost:20, desc:'+50 最大HP' },
+      { label:'斬撃強化',     key:'slash',  cost:25, desc:'基本威力 +3' },
+      { label:'詠唱短縮',     key:'cast',   cost:20, desc:'チャージ速度 +3%' },
       { label:'スロット解放', key:'slot',   cost:30, desc:'呪符スロット +1（上限9）' },
     ].map((item, i) => {
       const by = b + 80 + i * 86;
@@ -864,11 +864,11 @@ class MainScene extends Phaser.Scene {
   }
 
   _upgApply(key) {
-    if      (key === 'hp')    { this.kbHPMax += 30; this.kbHP = Math.min(this.kbHP + 30, this.kbHPMax); }
-    else if (key === 'slash') { this.slashDmg += 2; }
+    if      (key === 'hp')    { this.kbHPMax += 50; this.kbHP = Math.min(this.kbHP + 50, this.kbHPMax); }
+    else if (key === 'slash') { this.slashDmg += 3; }
     else if (key === 'cast')  {
       for (const c of [...this.bagCharms, ...this.slotCharms.filter(Boolean)]) {
-        c.chargeMs = Math.max(400, Math.round(c.chargeMs * 0.85));
+        c.chargeMs = Math.max(400, Math.round(c.chargeMs * 0.97));
       }
     }
     else if (key === 'slot')  { this.unlockedSlots = Math.min(9, this.unlockedSlots + 1); this._gridUp(); }
