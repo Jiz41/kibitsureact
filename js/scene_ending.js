@@ -259,7 +259,7 @@ class EndingScene extends Phaser.Scene {
       if (this._shakeTimer) { this._shakeTimer.destroy(); this._shakeTimer = null; }
       this.tweens.add({
         targets: [t1, t2, t3], alpha: 0, duration: 800,
-        onComplete: () => this.scene.start('TitleScene'),
+        onComplete: () => { saveClearedOnce(); this.scene.start('TitleScene'); },
       });
     });
   }

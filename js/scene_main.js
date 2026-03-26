@@ -167,6 +167,7 @@ class MainScene extends Phaser.Scene {
 
     // load save on continue
     const _initType = (this.scene.settings.data || {}).type;
+    this.clearedOnce = loadClearedOnce();
     if (_initType === 'continue') {
       const sv = loadGame();
       if (sv) {
@@ -180,6 +181,7 @@ class MainScene extends Phaser.Scene {
         this.slotCharms    = sv.slotCharmIds.map(id => id ? ({ ...CHARM_DEFS.find(c => c.id === id) } || null) : null);
         this.charmTimers   = sv.charmTimers;
         this.selectedUltId = sv.selectedUltId || 'kaguya';
+        this.clearedOnce   = sv.clearedOnce ?? this.clearedOnce;
       }
     }
 
@@ -2017,6 +2019,7 @@ class MainScene extends Phaser.Scene {
       slotCharmIds:  this.slotCharms.map(c => c ? c.id : null),
       charmTimers:   [...this.charmTimers],
       selectedUltId: this.selectedUltId,
+      clearedOnce:   this.clearedOnce ?? false,
     });
   }
 

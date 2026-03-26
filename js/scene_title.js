@@ -17,7 +17,8 @@ class TitleScene extends Phaser.Scene {
   create() {
     this.sound.stopAll();
     this._opts    = loadOpts();
-    this._hasSave = !!loadGame();
+    this._hasSave     = !!loadGame();
+    this._clearedOnce = loadClearedOnce();
     this._opZoomDone = false;
     this._zoomTween  = null;
     this._bgm = this.cache.audio.has('bgm_op')
@@ -64,15 +65,16 @@ class TitleScene extends Phaser.Scene {
     this._titleObjs.push(this.add.text(W/2, 170, 'Kibitsu RE:act', {
       fontSize:'26px', color:'#ddcc44', fontFamily:'serif', fontStyle:'bold', stroke:'#000', strokeThickness:5
     }).setOrigin(0.5).setDepth(1));
-    // TODO: clearedOnce フラグ実装後は百鬼夜行ボタンを { grey: !clearedOnce } に変更
-    // const clearedOnce = false; // エンディング到達済みフラグ（未実装・プレースホルダー）
-    this._menuBtns = [
-      { label:'はじめから', key:'new',         y:300 },
-      { label:'つづきから', key:'cont',        y:410 },
-      { label:'百鬼夜行',   key:'hyakkiyako',  y:520, crimson:true },
-      { label:'オプション', key:'opts',        y:630 },
-    ].map(item => {
-      const grey    = (item.key === 'cont' && !this._hasSave) || item.key === 'hyakkiyako';
+    const baseItems = [
+      { label:'はじめから', key:'new',  y:300 },
+      { label:'つづきから', key:'cont', y:410 },
+      { label:'オプション', key:'opts', y: this._clearedOnce ? 630 : 520 },
+    ];
+    if (this._clearedOnce) {
+      baseItems.splice(2, 0, { label:'百鬼夜行', key:'hyakkiyako', y:520, crimson:true });
+    }
+    this._menuBtns = baseItems.map(item => {
+      const grey    = item.key === 'cont' && !this._hasSave;
       const bgCol   = grey ? 0x111111 : item.crimson ? 0x1a0000 : 0x0f1e10;
       const strokeC = grey ? 0x333333 : item.crimson ? 0x660000 : 0x44aa44;
       const txtCol  = grey ? '#444444' : item.crimson ? '#cc4444' : '#cceecc';
@@ -316,7 +318,7 @@ class TitleScene extends Phaser.Scene {
       this.load.start();
     };
     loadIfMissing(['op_bg', 'title_logo'], () => {
-      this.add.text(W - 6, H - 6, 'v0.4.7.7', {
+      this.add.text(W - 6, H - 6, 'v0.4.8.0', {
         fontSize: '14px', color: '#00ff00', fontFamily: 'monospace'
       }).setOrigin(1, 1).setDepth(50);
       // テクスチャを再適用し、スケールを再計算
@@ -504,7 +506,7 @@ class TitleScene extends Phaser.Scene {
           if (btn.grey) return;
           if (btn.key === 'new')         { deleteSave(); this.scene.start('MainScene', { type:'new' }); }
           if (btn.key === 'cont')        { this.scene.start('MainScene', { type:'continue' }); }
-          if (btn.key === 'hyakkiyako')  { deleteSave(); this.scene.start('MainScene', { type:'new' }); }
+          if (btn.key === 'hyakkiyako')  { console.log('百鬼夜行 TODO'); }
           if (btn.key === 'opts')        { this._setPhase('opts'); }
           return;
         }
