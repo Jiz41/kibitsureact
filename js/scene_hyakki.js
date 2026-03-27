@@ -40,6 +40,7 @@ class HyakkiScene extends Phaser.Scene {
     this._cpVis              = false;
     this._bossWarnFlashTimer = null;
     this._bossWarnShakeTimer = null;
+    this._goVis              = false;
 
     /* ── 背景オーバーレイ ─────────────────────── */
     this.bgOverlay = this.add.graphics().setDepth(0);
@@ -58,6 +59,9 @@ class HyakkiScene extends Phaser.Scene {
       stroke: '#000', strokeThickness: 2,
     }).setOrigin(0.5).setAlpha(0).setDepth(7);
 
+    /* ── ゲームオーバーUI ─────────────────────── */
+    this._goBuild();
+
     /* ── 強化UI ──────────────────────────────── */
     this._upgBuild();
 
@@ -71,6 +75,7 @@ class HyakkiScene extends Phaser.Scene {
     this.input.on('pointerdown', (ptr) => {
       const { x, y } = ptr;
       if (this.dialogActive) { this._dlgNext(); return; }
+      if (this._goVis)       { this._goTap(x, y);  return; }
       if (this._cpVis)       { this._cpTap(x, y);  return; }
       if (this._upgVis)      { this._upgTap(x, y); return; }
       if (y < BATTLE_H)      { this._doSlash(); return; }
@@ -296,12 +301,65 @@ class HyakkiScene extends Phaser.Scene {
     this._bossNameTxt.setAlpha(0);
   }
 
-  /* ── ゲームオーバー ─────────────────────── */
+  /* ── ゲームオーバーUI構築 ───────────────── */
+  _goBuild() {
+    this._goBg      = this.add.rectangle(W / 2, H / 2, W, H, 0x000000).setAlpha(0).setDepth(60);
+    this._goTitle   = this.add.text(W / 2, H / 2 - 130, '討死', {
+      fontSize: '32px', color: '#ffffff', fontFamily: '"Yuji Syuku", serif',
+      stroke: '#000', strokeThickness: 4,
+    }).setOrigin(0.5).setAlpha(0).setDepth(61);
+    this._goWaveTxt = this.add.text(W / 2, H / 2 - 80, '', {
+      fontSize: '22px', color: '#ffffff', fontFamily: '"Yuji Syuku", serif',
+      stroke: '#000', strokeThickness: 3,
+    }).setOrigin(0.5).setAlpha(0).setDepth(61);
+    this._goPostBg  = this.add.rectangle(W / 2, H / 2 + 10, 240, 52, 0x000000).setStrokeStyle(2, 0xffffff).setAlpha(0).setDepth(60);
+    this._goPostTxt = this.add.text(W / 2, H / 2 + 10, 'Xに投稿する', {
+      fontSize: '18px', color: '#ffffff', fontFamily: 'serif',
+    }).setOrigin(0.5).setAlpha(0).setDepth(61);
+    this._goBackBg  = this.add.rectangle(W / 2, H / 2 + 82, 240, 52, 0x000000).setStrokeStyle(2, 0xffffff).setAlpha(0).setDepth(60);
+    this._goBackTxt = this.add.text(W / 2, H / 2 + 82, 'タイトルへ戻る', {
+      fontSize: '18px', color: '#ffffff', fontFamily: 'serif',
+    }).setOrigin(0.5).setAlpha(0).setDepth(61);
+  }
+
+  /* ── ゲームオーバー発動 ─────────────────── */
   _gameOver() {
     this._clearEnemies();
     if (this._spawnTimer) { this._spawnTimer.remove(false); this._spawnTimer = null; }
     if (this._waveTimer)  { this._waveTimer.remove(false);  this._waveTimer  = null; }
-    this.scene.start('TitleScene');
+    this._goVis = true;
+    this._goBg.setAlpha(0.85);
+    this._goTitle.setAlpha(1);
+    this._goWaveTxt.setText(`第${this._toKanji(this.wave)}波ニ至ル`).setAlpha(1);
+    this._goPostBg.setAlpha(1); this._goPostTxt.setAlpha(1);
+    this._goBackBg.setAlpha(1); this._goBackTxt.setAlpha(1);
+  }
+
+  /* ── ゲームオーバータップ ───────────────── */
+  _goTap(x, y) {
+    if (Math.abs(x - W / 2) < 124 && Math.abs(y - (H / 2 + 10)) < 28) {
+      window.open(this._xPostUrl(), '_blank');
+      return;
+    }
+    if (Math.abs(x - W / 2) < 124 && Math.abs(y - (H / 2 + 82)) < 28) {
+      this._goVis = false;
+      this.scene.start('TitleScene');
+      return;
+    }
+  }
+
+  /* ── Xポスト URL生成 ─────────────────────── */
+  _xPostUrl() {
+    const w = this.wave;
+    let battle, end;
+    if      (w <= 5)  { battle = '若干数ヲ屠ル';           end = '敢闘ノ末、戦死ヲ遂グ'; }
+    else if (w <= 10) { battle = '相当数ヲ屠ル';           end = '奮戦ノ末、戦死ヲ遂グ'; }
+    else if (w <= 20) { battle = '夥シキ数ヲ屠ル';         end = '死闘ノ末、戦死ヲ遂グ'; }
+    else if (w <= 30) { battle = '無数ヲ屠ル';             end = '壮烈ナル戦死ヲ遂グ'; }
+    else if (w <= 50) { battle = '無尽ノ鬼共ヲ屠ル';       end = '神州不滅ヲ信ジ、戦死ヲ遂グ'; }
+    else              { battle = '天地ヲ埋メル鬼共ヲ屠ル'; end = '鬼神ニモ劣ラヌ奮闘ノ末、戦死ヲ遂グ'; }
+    const text = `【百鬼夜行記録】\n交戦：第${this._toKanji(w)}波ニ至ル\n戦果：${battle}\n結末：${end}\n#KibitsuREact`;
+    return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
   }
 
   /* ── 強化UI ──────────────────────────────── */
