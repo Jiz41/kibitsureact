@@ -1,0 +1,18 @@
+name: Sync to monohatamesi
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Force push to monohatamesi
+        run: |
+          git remote add test https://Jiz41:${{ secrets.SYNC_PAT }}@github.com/Jiz41/monohatamesi.git
+          git push test main --force
