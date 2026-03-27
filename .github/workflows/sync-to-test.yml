@@ -17,4 +17,4 @@ jobs:
           git config --global --unset-all http.https://github.com/.extraheader || true
           git remote remove test || true
           git remote add test https://Jiz41:${{ secrets.SYNC_PAT }}@github.com/Jiz41/monohatamesi.git
-          git push test main --force
+          git push test HEAD:main --force
