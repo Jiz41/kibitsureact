@@ -1,16 +1,16 @@
 'use strict';
 
 /* ── Oni ────────────────────────────────────── */
-const ONI_HP   = 20,  /* TODO: 本番値に戻す 本番: 160 */ ONI_SPD  = 55, ONI_DMG  = 8; /* TODO: バランス調整中 元: 15 */
+const ONI_HP   = 160, ONI_SPD  = 55, ONI_DMG  = 8;
 const ONI_ATK  = 2000, ONI_RNG = 75, ONI_INT  = 2000;
 const ONI_WAVE = 10,   ONI_W   = 38, ONI_H    = 54;
 const ONI_BW   = 38,   ONI_BH  = 5;
 
 /* ── Named ──────────────────────────────────── */
-const NM_HP = 50, /* TODO: 本番値に戻す 本番: 480 */ NM_SPD = 35, NM_DMG = 12; /* TODO: バランス調整中 元: 25 */
+const NM_HP = 480, NM_SPD = 35, NM_DMG = 12;
 
 /* ── Ogre (WAVE8-9 中ボス) ───────────────────── */
-const OGRE_HP = 80, /* TODO: 本番値に戻す 本番: 800 */ OGRE_SPD = 30, OGRE_DMG = 15; /* TODO: バランス調整中 元: 30 */
+const OGRE_HP = 800, OGRE_SPD = 30, OGRE_DMG = 15;
 
 /* ── Boss ───────────────────────────────────── */
 const BOSS_HP = 3000, BOSS_SPD = 15, BOSS_DMG = 50;
