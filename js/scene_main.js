@@ -1,5 +1,14 @@
 'use strict';
 
+function shuffle(array) {
+  const a = array.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 const DEBUG = true; // 本番リリース時は false に
 
 /* ── BG ─────────────────────────────────────── */
@@ -171,17 +180,26 @@ class MainScene extends Phaser.Scene {
     if (_initType === 'continue') {
       const sv = loadGame();
       if (sv) {
-        this.wave          = sv.wave;
-        this.kbHP          = sv.kbHP;
-        this.kbHPMax       = sv.kbHPMax;
-        this.slashDmg      = sv.slashDmg;
-        this.totalExp      = sv.totalExp;
+        this.wave          = sv.wave          ?? this.wave;
+        this.kbHP          = sv.kbHP          ?? this.kbHP;
+        this.kbHPMax       = sv.kbHPMax       ?? this.kbHPMax;
+        this.slashDmg      = sv.slashDmg      ?? this.slashDmg;
+        this.totalExp      = sv.totalExp      ?? this.totalExp;
         this.unlockedSlots = sv.unlockedSlots != null ? sv.unlockedSlots : 3;
-        this.bagCharms     = sv.bagCharms || [];
-        this.slotCharms    = sv.slotCharmIds.map(id => id ? ({ ...CHARM_DEFS.find(c => c.id === id) } || null) : null);
-        this.charmTimers   = sv.charmTimers;
+        this.bagCharms     = sv.bagCharms     || [];
+
+        const slotIds   = Array.isArray(sv.slotCharmIds) ? sv.slotCharmIds : [];
+        this.slotCharms = new Array(9).fill(null).map((_, i) => {
+          const id = slotIds[i];
+          return id ? ({ ...CHARM_DEFS.find(c => c.id === id) } || null) : null;
+        });
+
+        this.charmTimers   = Array.isArray(sv.charmTimers)
+          ? sv.charmTimers.concat(new Array(9)).slice(0, 9)
+          : new Array(9).fill(0);
+
         this.selectedUltId = sv.selectedUltId || 'kaguya';
-        this.clearedOnce   = sv.clearedOnce ?? this.clearedOnce;
+        this.clearedOnce   = sv.clearedOnce   ?? this.clearedOnce;
       }
     }
 
@@ -215,6 +233,7 @@ class MainScene extends Phaser.Scene {
     this._sorKireTimer     = null;
     this._sorGlitchLv        = 0;
     this._sorGlitchLoopTimer = null;
+    this._sorGlitchPoolInit();
     this.selectedUltId = this.selectedUltId || 'kaguya';
     this._ultLpTimer   = null;
     this._ultMenuVis   = false;
@@ -250,7 +269,7 @@ class MainScene extends Phaser.Scene {
       this.tweens.add({ targets: this.bgmCurrent, volume: this.bgmVol, duration: 1000 });
     }
 
-    this.events.on('shutdown', () => { this.sound.stopAll(); });
+    this.events.on('shutdown', () => this.shutdown());
 
     // OPENINGシーン：はじめから選択時のみ表示
     if (_initType === 'new' && SCENARIO && SCENARIO.opening) {
@@ -715,7 +734,7 @@ class MainScene extends Phaser.Scene {
           btn.nm.setAlpha(0); btn.ds.setAlpha(0);
         }
       } else {
-        const choices = [...CHARM_DEFS].sort(() => Math.random() - 0.5).slice(0, 3);
+        const choices = shuffle(CHARM_DEFS).slice(0, 3);
         for (let i = 0; i < 3; i++) {
           const btn = this.cpBtns[i], c = choices[i];
           btn.charm = c; btn.bagIdx = -1;
@@ -1423,47 +1442,51 @@ class MainScene extends Phaser.Scene {
     if (this._sorGlitchLoopTimer) { this._sorGlitchLoopTimer.remove(false); this._sorGlitchLoopTimer = null; }
   }
 
+  /* ── グリッチオブジェクトプール（生成・破棄コストを排除） ─── */
+  _sorGlitchPoolInit() {
+    const N = 8; // lv4最短40ms・最長ライフタイム200msで最大5同時 → 8で余裕
+    this._gpNoise = Array.from({length: N}, () => { const g = this.add.graphics().setDepth(52); g._gpFree = true; return g; });
+    this._gpAberr = Array.from({length: N}, () => { const g = this.add.graphics().setDepth(51); g._gpFree = true; return g; });
+    this._gpRt    = Array.from({length: N}, () => { const r = this.add.renderTexture(0, 0, W, BATTLE_H).setDepth(50).setAlpha(0); r._gpFree = true; return r; });
+  }
+
+  _gpGet(pool) { return pool.find(g => g._gpFree) ?? pool[0]; }
+
   _sorGlitch(scale = 1) {
     if (!this.soranaki?.active) return;
 
     // ① 短冊ノイズ：本数・強度をscaleで拡大
-    const noise = this.add.graphics().setDepth(52);
+    const noise = this._gpGet(this._gpNoise);
+    noise._gpFree = false; noise.clear();
     for (let i = 0, n = Phaser.Math.Between(5, 5 + Math.round(scale * 3)); i < n; i++) {
       noise.fillStyle(0xffffff, Phaser.Math.FloatBetween(0.08, Math.min(0.7, 0.28 * scale)));
-      noise.fillRect(
-        Phaser.Math.Between(0, W),
-        Phaser.Math.Between(0, BATTLE_H - 4),
-        Phaser.Math.Between(20, W),
-        Phaser.Math.Between(2, 4)
-      );
+      noise.fillRect(Phaser.Math.Between(0, W), Phaser.Math.Between(0, BATTLE_H - 4), Phaser.Math.Between(20, W), Phaser.Math.Between(2, 4));
     }
-    this.time.delayedCall(100, () => { if (noise.active) noise.destroy(); });
+    this.time.delayedCall(100, () => { noise.clear(); noise._gpFree = true; });
 
     // ② 色収差オーバーレイ：ずれ幅をscaleで拡大
-    const aberr = this.add.graphics().setDepth(51);
+    const aberr = this._gpGet(this._gpAberr);
+    aberr._gpFree = false; aberr.clear();
     const sh = Phaser.Math.Between(1, 2) * scale;
     aberr.fillStyle(0xff2200, Math.min(0.3, 0.07 * scale)); aberr.fillRect(sh,  0, W, BATTLE_H);
     aberr.fillStyle(0x0033ff, Math.min(0.3, 0.07 * scale)); aberr.fillRect(-sh, 0, W, BATTLE_H);
-    this.time.delayedCall(150, () => { if (aberr.active) aberr.destroy(); });
+    this.time.delayedCall(150, () => { aberr.clear(); aberr._gpFree = true; });
 
     // ③ スキャンラインずれ：横ずれ幅をscaleで拡大
-    const rt = this.add.renderTexture(0, 0, W, BATTLE_H).setDepth(50).setAlpha(0.7);
+    const rt = this._gpGet(this._gpRt);
+    rt._gpFree = false; rt.clear(); rt.setAlpha(0.7).setX(0);
     this.children.list
-      .filter(o => o !== rt && o !== noise && o !== aberr &&
+      .filter(o => !this._gpNoise.includes(o) && !this._gpAberr.includes(o) && !this._gpRt.includes(o) &&
                    o.active && o.visible && o.depth < 45 &&
                    typeof o.y === 'number' && o.y < BATTLE_H + 80)
       .forEach(o => rt.draw(o));
     const m  = Math.round(15 * scale);
     const m2 = Math.round(8  * scale);
-    const ox = [
-      Phaser.Math.Between(-m,  m),
-      Phaser.Math.Between(-m,  m),
-      Phaser.Math.Between(-m2, m2),
-    ];
+    const ox = [Phaser.Math.Between(-m, m), Phaser.Math.Between(-m, m), Phaser.Math.Between(-m2, m2)];
     rt.x = ox[0];
-    this.time.delayedCall(67,  () => { if (rt.active) rt.x = ox[1]; });
-    this.time.delayedCall(134, () => { if (rt.active) rt.x = ox[2]; });
-    this.time.delayedCall(200, () => { if (rt.active) rt.destroy(); });
+    this.time.delayedCall(67,  () => { if (!rt._gpFree) rt.x = ox[1]; });
+    this.time.delayedCall(134, () => { if (!rt._gpFree) rt.x = ox[2]; });
+    this.time.delayedCall(200, () => { rt.setAlpha(0).setX(0); rt._gpFree = true; });
   }
 
   /* ── 空無童子：カウントダウン（18秒ごと） ─── */
@@ -1535,41 +1558,35 @@ class MainScene extends Phaser.Scene {
   /* ── 空無童子：強化グリッチ（クライマックス用） ─── */
   _sorGlitchHeavy() {
     // ① 短冊ノイズ（通常の4倍：20〜32本）
-    const noise = this.add.graphics().setDepth(52);
+    const noise = this._gpGet(this._gpNoise);
+    noise._gpFree = false; noise.clear();
     for (let i = 0, n = Phaser.Math.Between(20, 32); i < n; i++) {
       noise.fillStyle(0xffffff, Phaser.Math.FloatBetween(0.3, 0.7));
-      noise.fillRect(
-        Phaser.Math.Between(0, W),
-        Phaser.Math.Between(0, BATTLE_H - 4),
-        Phaser.Math.Between(20, W),
-        Phaser.Math.Between(2, 8)
-      );
+      noise.fillRect(Phaser.Math.Between(0, W), Phaser.Math.Between(0, BATTLE_H - 4), Phaser.Math.Between(20, W), Phaser.Math.Between(2, 8));
     }
-    this.time.delayedCall(100, () => { if (noise.active) noise.destroy(); });
+    this.time.delayedCall(100, () => { noise.clear(); noise._gpFree = true; });
 
     // ② 色収差（4〜8px）
-    const aberr = this.add.graphics().setDepth(51);
+    const aberr = this._gpGet(this._gpAberr);
+    aberr._gpFree = false; aberr.clear();
     const sh = Phaser.Math.Between(4, 8);
     aberr.fillStyle(0xff2200, 0.25); aberr.fillRect(sh,  0, W, BATTLE_H);
     aberr.fillStyle(0x0033ff, 0.25); aberr.fillRect(-sh, 0, W, BATTLE_H);
-    this.time.delayedCall(150, () => { if (aberr.active) aberr.destroy(); });
+    this.time.delayedCall(150, () => { aberr.clear(); aberr._gpFree = true; });
 
     // ③ スキャンラインずれ（±40px）
-    const rt = this.add.renderTexture(0, 0, W, BATTLE_H).setDepth(50).setAlpha(0.7);
+    const rt = this._gpGet(this._gpRt);
+    rt._gpFree = false; rt.clear(); rt.setAlpha(0.7).setX(0);
     this.children.list
-      .filter(o => o !== rt && o !== noise && o !== aberr &&
+      .filter(o => !this._gpNoise.includes(o) && !this._gpAberr.includes(o) && !this._gpRt.includes(o) &&
                    o.active && o.visible && o.depth < 45 &&
                    typeof o.y === 'number' && o.y < BATTLE_H + 80)
       .forEach(o => rt.draw(o));
-    const ox = [
-      Phaser.Math.Between(-40, 40),
-      Phaser.Math.Between(-40, 40),
-      Phaser.Math.Between(-20, 20),
-    ];
+    const ox = [Phaser.Math.Between(-40, 40), Phaser.Math.Between(-40, 40), Phaser.Math.Between(-20, 20)];
     rt.x = ox[0];
-    this.time.delayedCall(67,  () => { if (rt.active) rt.x = ox[1]; });
-    this.time.delayedCall(134, () => { if (rt.active) rt.x = ox[2]; });
-    this.time.delayedCall(200, () => { if (rt.active) rt.destroy(); });
+    this.time.delayedCall(67,  () => { if (!rt._gpFree) rt.x = ox[1]; });
+    this.time.delayedCall(134, () => { if (!rt._gpFree) rt.x = ox[2]; });
+    this.time.delayedCall(200, () => { rt.setAlpha(0).setX(0); rt._gpFree = true; });
   }
 
   /* ── 空無童子：画面外逃走 → ゲームオーバー ─── */
@@ -2627,5 +2644,15 @@ class MainScene extends Phaser.Scene {
     this._tipOverlay.setVisible(false); this._tipOverlay.input.enabled = false;
     this._tipRemoveHit.setVisible(false); this._tipRemoveHit.input.enabled = false;
     this._lpIdx = -1;
+  }
+
+  shutdown() {
+    this.sound.stopAll();
+    if (this._bossSpawnTimerKobuki) { this._bossSpawnTimerKobuki.remove(false); this._bossSpawnTimerKobuki = null; }
+    if (this._bossSpawnTimerNamed)  { this._bossSpawnTimerNamed.remove(false);  this._bossSpawnTimerNamed  = null; }
+    if (this._sorShakeTimer)        { this._sorShakeTimer.remove(false);        this._sorShakeTimer        = null; }
+    if (this._sorGlitchLoopTimer)   { this._sorGlitchLoopTimer.remove(false);   this._sorGlitchLoopTimer   = null; }
+    if (this._sorClimaxTimer)       { this._sorClimaxTimer.remove(false);       this._sorClimaxTimer       = null; }
+    this.tweens.killAll();
   }
 }
