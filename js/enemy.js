@@ -25,3 +25,36 @@ const GAUGE_MAX = 100, GAUGE_HIT = 1, SUPER_DMG = 120;
 
 /* ── EXP ────────────────────────────────────── */
 const EXP_G = 10, EXP_N = 30, EXP_B = 150;
+
+/* ── Chapter damage table ───────────────────── */
+const CHAPTER_DMG = [
+  null,
+  { oni: 40,  named: 60,  ogre: 80,  boss: 100 },
+  { oni: 55,  named: 82,  ogre: 110, boss: 137 },
+  { oni: 70,  named: 105, ogre: 140, boss: 175 },
+  { oni: 85,  named: 127, ogre: 170, boss: 212 },
+  { oni: 100, named: 150, ogre: 200, boss: 250 },
+];
+
+/* ── Wave enemy count table [wic-1][chapter-1] ─ */
+const WAVE_COUNTS = [
+  [ 5,  8, 10, 12, 15], // wic=1
+  [ 8, 10, 12, 15, 18], // wic=2
+  [ 8, 10, 12, 15, 18], // wic=3
+  [10, 12, 15, 18, 22], // wic=4
+  [10, 12, 15, 18, 22], // wic=5
+  [12, 15, 18, 22, 25], // wic=6
+  [12, 15, 18, 22, 25], // wic=7
+  [15, 20, 22, 25, 28], // wic=8
+  [15, 20, 22, 25, 28], // wic=9
+];
+
+/* ── Attribute unlock by chapter ────────────── */
+const ATTR_UNLOCK = [
+  null,
+  ['water'],
+  ['water', 'earth'],
+  ['water', 'earth', 'fire'],
+  ['water', 'earth', 'fire', 'wind'],
+  ['water', 'earth', 'fire', 'wind'],
+];

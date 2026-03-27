@@ -167,7 +167,9 @@ class MainScene extends Phaser.Scene {
     this.slashDmg = SL_BASE;
     this.combo = 1.0; this.comboTimer = 0;
     this.gauge = 0; this.gaugeReady = false;
+    this.ultCooldown = 0;
     this.unlockedSlots = 3;
+    this.upgradeCounts = { hp: 0, slash: 0, cast: 0, slot: 0 };
     this.slotCharms  = new Array(9).fill(null);
     this.charmTimers = new Array(9).fill(0);
     this.bagCharms   = [];
@@ -198,8 +200,11 @@ class MainScene extends Phaser.Scene {
           ? sv.charmTimers.concat(new Array(9)).slice(0, 9)
           : new Array(9).fill(0);
 
-        this.selectedUltId = sv.selectedUltId || 'kaguya';
-        this.clearedOnce   = sv.clearedOnce   ?? this.clearedOnce;
+        this.selectedUltId  = sv.selectedUltId  || 'kaguya';
+        this.clearedOnce    = sv.clearedOnce    ?? this.clearedOnce;
+        if (sv.upgradeCounts && typeof sv.upgradeCounts === 'object') {
+          Object.assign(this.upgradeCounts, sv.upgradeCounts);
+        }
       }
     }
 
@@ -283,6 +288,16 @@ class MainScene extends Phaser.Scene {
     if (this.dialogActive) return;
     if (this.paused) return;
 
+    // ult cooldown
+    if (this.ultCooldown > 0) {
+      this.ultCooldown = Math.max(0, this.ultCooldown - dt);
+      if (this.ultCooldown === 0 && this.gaugeReady) {
+        this._sbUpdate();
+        this.sBtnBg.setAlpha(1); this.sBtnTxt.setAlpha(1);
+        this.tweens.add({ targets: [this.sBtnBg, this.sBtnTxt], alpha: { from:1, to:0.35 }, yoyo:true, repeat:-1, duration:450 });
+      }
+    }
+
     // combo decay
     if (this.combo > 1.0) {
       this.comboTimer += dt;
@@ -299,12 +314,13 @@ class MainScene extends Phaser.Scene {
     }
 
     // spawn grunts
-    if (this.spawned < ONI_WAVE) {
+    const _wc = this._waveCount();
+    if (this.spawned < _wc) {
       this.spawnTimer += dt;
       if (this.spawnTimer >= ONI_INT) { this.spawnTimer -= ONI_INT; this._spawnOni(); }
     }
     // boss/ogre wave
-    if (this.spawned >= ONI_WAVE && !this.bossSpawned) {
+    if (this.spawned >= _wc && !this.bossSpawned) {
       this.bossSpawned = true;
       const wic = ((this.wave - 1) % 10) + 1;
       if (wic === 10)    this._spawnBoss();       // ネームドボス
@@ -385,7 +401,7 @@ class MainScene extends Phaser.Scene {
 
     // wave clear（bossDeathSequenceによる二重発火防止、WAVE10はボス撃破のみ）
     const _wic = ((this.wave - 1) % 10) + 1;
-    if (!this.waveDone && this.spawned >= ONI_WAVE && this.bossSpawned && this.onis.countActive(true) === 0 && _wic !== 10)
+    if (!this.waveDone && this.spawned >= _wc && this.bossSpawned && this.onis.countActive(true) === 0 && _wic !== 10)
       this._waveClear();
 
     this._hdrUp();
@@ -598,10 +614,10 @@ class MainScene extends Phaser.Scene {
     this.upgTtl = this.add.text(W/2, b + 18, 'キビツを強化する', { fontSize:'17px', color:'#ffcc88', fontFamily:'serif', fontStyle:'bold' }).setOrigin(0.5).setAlpha(0).setDepth(18);
     this.upgExp = this.add.text(W/2, b + 44, '', { fontSize:'13px', color:'#aaeeaa', fontFamily:'Arial' }).setOrigin(0.5).setAlpha(0).setDepth(18);
     this.upgBtns = [
-      { label:'HP強化',       key:'hp',    cost:20, desc:'+50 最大HP' },
-      { label:'斬撃強化',     key:'slash',  cost:25, desc:'基本威力 +3' },
-      { label:'詠唱短縮',     key:'cast',   cost:20, desc:'チャージ速度 +3%' },
-      { label:'スロット解放', key:'slot',   cost:30, desc:'呪符スロット +1（上限9）' },
+      { label:'HP強化',       key:'hp',    baseCost:20, desc:'+50 最大HP' },
+      { label:'斬撃強化',     key:'slash',  baseCost:25, desc:'基本威力 +3' },
+      { label:'詠唱短縮',     key:'cast',   baseCost:20, desc:'チャージ速度 +3%' },
+      { label:'スロット解放', key:'slot',   baseCost:30, desc:'呪符スロット +1（上限9）' },
     ].map((item, i) => {
       const by = b + 80 + i * 86;
       return {
@@ -734,7 +750,9 @@ class MainScene extends Phaser.Scene {
           btn.nm.setAlpha(0); btn.ds.setAlpha(0);
         }
       } else {
-        const choices = shuffle(CHARM_DEFS).slice(0, 3);
+        const unlockedAttrs = ATTR_UNLOCK[Math.min(this.chapter, 5)] || ['water', 'earth', 'fire', 'wind'];
+        const pool = CHARM_DEFS.filter(c => unlockedAttrs.includes(c.attr));
+        const choices = shuffle(pool).slice(0, 3);
         for (let i = 0; i < 3; i++) {
           const btn = this.cpBtns[i], c = choices[i];
           btn.charm = c; btn.bagIdx = -1;
@@ -861,7 +879,8 @@ class MainScene extends Phaser.Scene {
     for (const b of this.upgBtns) {
       const disabled = b.item.key === 'slot' && this.unlockedSlots >= 9;
       b.bg.setAlpha(1).setStrokeStyle(2, disabled ? 0x333333 : 0x664488);
-      const costLabel = disabled ? '（上限到達）' : `[${b.item.cost} EXP]`;
+      const cost = this._upgCost(b.item.key);
+      const costLabel = disabled ? '（上限到達）' : `[${cost} EXP]`;
       b.lbl.setText(`${b.item.label}  ${costLabel}`)
         .setStyle({ color: disabled ? '#555555' : '#ccaaff', fontSize:'15px', fontFamily:'serif' }).setAlpha(1);
       b.ds.setText(b.item.desc).setAlpha(1);
@@ -874,8 +893,9 @@ class MainScene extends Phaser.Scene {
     for (let i = 0; i < this.upgBtns.length; i++) {
       const by = b + 80 + i * 86;
       if (Math.abs(y - by) < 38) {
-        const { cost, key } = this.upgBtns[i].item;
+        const { key } = this.upgBtns[i].item;
         if (key === 'slot' && this.unlockedSlots >= 9) return;
+        const cost = this._upgCost(key);
         if (this.totalExp >= cost) { this.totalExp -= cost; this._upgApply(key); this._upgRefresh(); }
         return;
       }
@@ -891,6 +911,19 @@ class MainScene extends Phaser.Scene {
       }
     }
     else if (key === 'slot')  { this.unlockedSlots = Math.min(9, this.unlockedSlots + 1); this._gridUp(); }
+    this.upgradeCounts[key] = (this.upgradeCounts[key] ?? 0) + 1;
+  }
+
+  _waveCount() {
+    const wic = ((this.wave - 1) % 10) + 1;
+    if (wic === 10) return 0; // boss wave: no grunt cap
+    const row = WAVE_COUNTS[wic - 1];
+    return row ? row[Math.min(this.chapter, 5) - 1] : ONI_WAVE;
+  }
+
+  _upgCost(key) {
+    const b = this.upgBtns.find(u => u.item.key === key);
+    return b ? b.item.baseCost * Math.pow(2, this.upgradeCounts[key] ?? 0) : 0;
   }
 
   _upgClose() {
@@ -935,8 +968,10 @@ class MainScene extends Phaser.Scene {
     if (pct >= 1.0 && !this.gaugeReady) {
       this.gaugeReady = true;
       this._sbUpdate();
-      this.sBtnBg.setAlpha(1); this.sBtnTxt.setAlpha(1);
-      this.tweens.add({ targets: [this.sBtnBg, this.sBtnTxt], alpha: { from:1, to:0.35 }, yoyo:true, repeat:-1, duration:450 });
+      if (this.ultCooldown <= 0) {
+        this.sBtnBg.setAlpha(1); this.sBtnTxt.setAlpha(1);
+        this.tweens.add({ targets: [this.sBtnBg, this.sBtnTxt], alpha: { from:1, to:0.35 }, yoyo:true, repeat:-1, duration:450 });
+      }
     } else if (pct < 1.0 && this.gaugeReady) {
       this.gaugeReady = false;
       this.tweens.killTweensOf([this.sBtnBg, this.sBtnTxt]);
@@ -947,7 +982,7 @@ class MainScene extends Phaser.Scene {
   /* ── Ultimate ───────────────────────────── */
   _ultFire() {
     this._sorActionTaken();
-    this.gauge = 0; this._gaugeUp();
+    this.gauge = 0; this.ultCooldown = 60000; this._gaugeUp();
     this._sePlay('se_ultimate', 0.4 * this.seVol);
     const ult = ULTIMATE_DATA.find(u => u.id === this.selectedUltId);
     if (!ult) return;
@@ -1174,7 +1209,8 @@ class MainScene extends Phaser.Scene {
     const col   = named ? 0x661199 : 0xaa1a1a;
     const stk   = named ? 0xcc88ff : 0xff6644;
     const spd   = named ? NM_SPD : ONI_SPD;
-    const dmg   = named ? NM_DMG : ONI_DMG;
+    const chDmg = CHAPTER_DMG[this.chapter] || CHAPTER_DMG[1];
+    const dmg   = named ? chDmg.named : chDmg.oni;
     const bw    = named ? 52 : ONI_BW;
     const name  = named ? '中鬼' : '小鬼';
     const imgKey = named ? 'oni-mid' : 'oni-small';
@@ -1188,7 +1224,8 @@ class MainScene extends Phaser.Scene {
   _spawnOgre() {
     // WAVE8-9：大鬼（isBoss=false）+ 小鬼の無限湧き、全滅でWAVEクリア
     const sy = Phaser.Math.Between(160, 290);
-    this._makeOni(W, sy, 52, 78, 0x441100, 0xff8833, '【大鬼】', '13px', '#ffcc88', OGRE_HP, OGRE_SPD, OGRE_DMG, 66, 60, false, 'oni-large', 'none');
+    const ogreDmg = (CHAPTER_DMG[this.chapter] || CHAPTER_DMG[1]).ogre;
+    this._makeOni(W, sy, 52, 78, 0x441100, 0xff8833, '【大鬼】', '13px', '#ffcc88', OGRE_HP, OGRE_SPD, ogreDmg, 66, 60, false, 'oni-large', 'none');
     const ogre = this.onis.getLast(true);
     ogre.isOgre = true;
     this._bossSpawnTimerKobuki = this.time.addEvent({
@@ -1288,7 +1325,8 @@ class MainScene extends Phaser.Scene {
     const attrPool = ['fire', 'water', 'earth', 'wind'];
     const attr = this.wave >= 2 ? attrPool[Phaser.Math.Between(0, 3)] : 'none';
     const sy = Phaser.Math.Between(160, 290);
-    this._makeOni(W, sy, 56, 84, 0x220044, 0xff33ff, `【${name}】`, '13px', '#ff88ff', BOSS_HP, BOSS_SPD, BOSS_DMG, 72, EXP_B, true, bossImg, attr);
+    const bossDmg = (CHAPTER_DMG[this.chapter] || CHAPTER_DMG[1]).boss;
+    this._makeOni(W, sy, 56, 84, 0x220044, 0xff33ff, `【${name}】`, '13px', '#ff88ff', BOSS_HP, BOSS_SPD, bossDmg, 72, EXP_B, true, bossImg, attr);
     this.onis.getLast(true).isNamed = true;
 
     // ボス出現と同時に無限湧き：小鬼1500ms・中鬼4000ms、同時上限8体（EXP0）
@@ -1311,7 +1349,8 @@ class MainScene extends Phaser.Scene {
     const col = named ? 0x661199 : 0xaa1a1a;
     const stk = named ? 0xcc88ff : 0xff6644;
     const spd = named ? NM_SPD : ONI_SPD;
-    const dmg = named ? NM_DMG : ONI_DMG;
+    const chDmg = CHAPTER_DMG[this.chapter] || CHAPTER_DMG[1];
+    const dmg = named ? chDmg.named : chDmg.oni;
     const bw  = named ? 52 : ONI_BW;
     const nm  = named ? '中鬼' : '小鬼';
     const imgKey = named ? 'oni-mid' : 'oni-small';
@@ -2035,8 +2074,9 @@ class MainScene extends Phaser.Scene {
       bagCharms:     this.bagCharms.map(c => ({ ...c })),
       slotCharmIds:  this.slotCharms.map(c => c ? c.id : null),
       charmTimers:   [...this.charmTimers],
-      selectedUltId: this.selectedUltId,
-      clearedOnce:   this.clearedOnce ?? false,
+      selectedUltId:  this.selectedUltId,
+      clearedOnce:    this.clearedOnce ?? false,
+      upgradeCounts:  { ...this.upgradeCounts },
     });
   }
 
@@ -2046,8 +2086,9 @@ class MainScene extends Phaser.Scene {
     this.expTxt.setText(`EXP: ${this.totalExp}`);
     this.waveTxt.setText(`WAVE ${this.wave}`);
     const wic = ((this.wave - 1) % 10) + 1;
-    const remaining = Math.max(0, ONI_WAVE - this.spawned) + this.onis.countActive(true);
-    this.eneCountTxt.setText(wic === 10 ? 'BOSS WAVE' : `${remaining}/${ONI_WAVE}`);
+    const waveMax = this._waveCount();
+    const remaining = Math.max(0, waveMax - this.spawned) + this.onis.countActive(true);
+    this.eneCountTxt.setText(wic === 10 ? 'BOSS WAVE' : `${remaining}/${waveMax}`);
   }
 
   _gridUp() {
@@ -2550,7 +2591,7 @@ class MainScene extends Phaser.Scene {
     // 大技ボタン短押し → 発動
     if (this._ultLpTimer) {
       this._ultLpTimer.remove(false); this._ultLpTimer = null;
-      if (this.gaugeReady && !this.paused && !this.dialogActive) this._ultFire();
+      if (this.gaugeReady && this.ultCooldown <= 0 && !this.paused && !this.dialogActive) this._ultFire();
       return;
     }
     if (this._lpTimer) { this._lpTimer.remove(false); this._lpTimer = null; }
