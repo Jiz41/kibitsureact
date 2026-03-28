@@ -264,7 +264,7 @@ class HyakkiScene extends Phaser.Scene {
     const nameIdx = Phaser.Math.Between(0, HK_BOSS_NAMES.length - 1);
     const name    = HK_BOSS_NAMES[nameIdx];
     const sc      = this._getScale(this.wave);
-    const hp      = Math.round(BOSS_HP  * sc);
+    const hp      = Math.round(BOSS_HP[nameIdx + 1] * sc);
     const dmg     = Math.round(BOSS_DMG * sc);
     const sy      = Phaser.Math.Between(80, BATTLE_H - 50);
 
