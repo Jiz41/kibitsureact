@@ -44,6 +44,7 @@ class HyakkiScene extends Phaser.Scene {
   create() {
     /* ── 初期ステータス ─────────────────────── */
     this.wave          = 1;
+    this.spawned       = 0;
     this.kbHP          = 500;
     this.kbHPMax       = 500;
     this.slashDmg      = SL_BASE;
@@ -253,14 +254,19 @@ class HyakkiScene extends Phaser.Scene {
 
   /* ── Header ─────────────────────────────── */
   _hdr() {
-    this.hpTxt   = this.add.text(14, UI_Y0 + 6, '', { fontSize: '13px', color: '#88aaff', fontFamily: 'Arial' }).setDepth(5);
-    this.waveTxt = this.add.text(W / 2, UI_Y0 + 14, '', { fontSize: '21px', color: '#ddcc44', fontFamily: 'serif', fontStyle: 'bold' }).setOrigin(0.5).setDepth(5);
-    this.expTxt  = this.add.text(W - 14, UI_Y0 + 6, '', { fontSize: '13px', color: '#aaee88', fontFamily: 'Arial' }).setOrigin(1, 0).setDepth(5);
+    this.hpTxt      = this.add.text(14, UI_Y0 + 6, '', { fontSize: '13px', color: '#88aaff', fontFamily: 'Arial' }).setDepth(5);
+    this.waveTxt    = this.add.text(W / 2, UI_Y0 + 14, '', { fontSize: '21px', color: '#ddcc44', fontFamily: 'serif', fontStyle: 'bold' }).setOrigin(0.5).setDepth(5);
+    this.expTxt     = this.add.text(W - 14, UI_Y0 + 6, '', { fontSize: '13px', color: '#aaee88', fontFamily: 'Arial' }).setOrigin(1, 0).setDepth(5);
+    this.eneCountTxt = this.add.text(W / 2, UI_Y0 + 31, '', { fontSize: '10px', color: '#cc8866', fontFamily: 'Arial' }).setOrigin(0.5, 0).setDepth(5);
   }
 
   _hdrUp() {
     this.hpTxt.setText(`HP: ${this.kbHP}/${this.kbHPMax}`);
     this.expTxt.setText(`EXP: ${this.totalExp}`);
+    const waveMax   = 20;
+    const remaining = Math.max(0, waveMax - this.spawned) + this.onis.countActive(true);
+    const isBoss    = this.wave % 50 === 0;
+    this.eneCountTxt.setText(isBoss ? 'BOSS WAVE' : `${remaining}/${waveMax}`);
   }
 
   _waveUiUp() {
@@ -771,6 +777,7 @@ class HyakkiScene extends Phaser.Scene {
       delay: 30000, loop: true,
       callback: () => {
         this.wave++;
+        this.spawned = 0;
         this._bgUp();
         this._waveUiUp();
         if      (this.wave % 50 === 0) this._bossStart();
@@ -800,7 +807,8 @@ class HyakkiScene extends Phaser.Scene {
     const hp  = Math.round(base.baseHP  * sc);
     const dmg = Math.round(base.baseDmg * sc);
     const spd = 30 + this.wave * 0.5;
-    const sy  = Phaser.Math.Between(40, BATTLE_H - 40);
+    const sy  = Phaser.Math.Between(160, 290);
+    this.spawned++;
     this._makeOni(W + 20, sy, 28, 28, col, stk, name, fs, fc, hp, spd, dmg, bw, exp, false, imgKey, 'none');
   }
 
